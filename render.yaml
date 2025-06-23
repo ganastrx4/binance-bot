@@ -1,0 +1,13 @@
+services:
+  - type: worker
+    name: binance-bot
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: python bot.py
+    envVars:
+      - key: API_KEY
+        fromEnvVar: API_KEY
+      - key: API_SECRET
+        fromEnvVar: API_SECRET
+
