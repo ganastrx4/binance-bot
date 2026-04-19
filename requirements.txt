@@ -1,5 +1,4 @@
-python-binance
-binance
-numpy
-
-
+flask
+flask-cors
+pymongo
+dnspython
