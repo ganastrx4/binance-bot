@@ -59,6 +59,54 @@ def verificar_firma(public_key_hex, mensaje, firma_hex):
 def index():
     return send_from_directory('.', 'index.html')
 
+# Agrega esta ruta a tu main.py actual en Render/GitHub
+
+@app.route('/transferir', methods=['POST'])
+def transferir():
+    datos = request.json
+    emisor = datos.get("emisor")
+    receptor = datos.get("receptor")
+    monto = float(datos.get("monto"))
+    firma = datos.get("firma")
+
+    # 1. Creamos el mensaje para validar la firma
+    # Debe ser exactamente igual a como se armó en el minero
+    mensaje = f"{emisor}{receptor}{monto}".encode()
+
+    try:
+        # 2. Validamos la firma digital
+        public_key_bytes = binascii.unhexlify(emisor)
+        vk = ecdsa.VerifyingKey.from_string(public_key_bytes, curve=ecdsa.SECP256k1)
+        
+        # Si la firma no coincide, soltará un error y pasará al 'except'
+        vk.verify(binascii.unhexlify(firma), mensaje)
+        
+        # 3. (Opcional pero recomendado) Verificar saldo en MongoDB
+        # Aquí puedes agregar lógica para ver si el emisor tiene saldo suficiente
+        
+        # 4. Registrar en MongoDB
+        ultimo_bloque = list(blockchain.find().sort("indice", -1).limit(1))[0]
+        nuevo_bloque = {
+            "indice": ultimo_bloque["indice"] + 1,
+            "timestamp": time.time(),
+            "transacciones": [{
+                "emisor": emisor,
+                "receptor": receptor,
+                "monto": monto,
+                "tipo": "TRANSFERENCIA"
+            }],
+            "hash_anterior": ultimo_bloque["hash"],
+            "hash": hashlib.sha256(f"{emisor}{receptor}{monto}{time.time()}".encode()).hexdigest()
+        }
+        
+        blockchain.insert_one(nuevo_bloque)
+        return jsonify({"status": "ok", "mensaje": "Transferencia exitosa"}), 200
+
+    except ecdsa.BadSignatureError:
+        return jsonify({"status": "error", "mensaje": "Firma inválida. ¡Intento de fraude!"}), 401
+    except Exception as e:
+        return jsonify({"status": "error", "mensaje": str(e)}), 500
+        
 @app.route('/minar', methods=['POST'])
 def recibir_bloque():
     datos = request.json
