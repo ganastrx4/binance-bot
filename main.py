@@ -1,15 +1,17 @@
 import os
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
 from pymongo import MongoClient
 import hashlib
 import time
-from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
+import binascii
+import ecdsa
 
 app = Flask(__name__)
 CORS(app)
 
 # ==========================================
-# CONFIGURACIÓN DE MONGO (YA CONFIGURADO)
+# CONFIGURACIÓN DE MONGO
 # ==========================================
 MONGO_URI = "mongodb+srv://charly:caseta82*@cluster0.daebfm2.mongodb.net/?appName=Cluster0"
 
@@ -18,31 +20,45 @@ db = client['charlycoin_db']
 blockchain = db['blockchain']
 
 DIFICULTAD = 5
-RECOMPENSA = 18 
+RECOMPENSA_MINADO = 18.0
+
+# ==========================================
+# FUNCIONES DE UTILIDAD
 # ==========================================
 
-def crear_genesis():
-    try:
-        if blockchain.count_documents({}) == 0:
-            genesis = {
-                "indice": 0,
-                "timestamp": time.time(),
-                "transacciones": [{"emisor": "SISTEMA", "receptor": "GENESIS", "monto": 0}],
-                "hash_anterior": "0",
-                "nonce": 0,
-                "hash": "0"
-            }
-            blockchain.insert_one(genesis)
-            print("[✨] Bloque Génesis creado en MongoDB Atlas.")
-    except Exception as e:
-        print(f"[❌] Error al conectar con MongoDB: {e}")
+def obtener_saldo(address):
+    """Calcula el saldo sumando recompensas y restando envíos"""
+    balance = 0.0
+    # Sumar lo que ha recibido (por minado o transferencias)
+    for bloque in blockchain.find({"transacciones.receptor": address}):
+        for tx in bloque["transacciones"]:
+            if tx["receptor"] == address:
+                balance += float(tx["monto"])
+    
+    # Restar lo que ha enviado
+    for bloque in blockchain.find({"transacciones.emisor": address}):
+        for tx in bloque["transacciones"]:
+            if tx["emisor"] == address:
+                balance -= float(tx["monto"])
+    return balance
 
-# RUTA PARA SERVIR EL EXPLORADOR (index.html)
+def verificar_firma(public_key_hex, mensaje, firma_hex):
+    """Valida que la firma digital sea auténtica"""
+    try:
+        public_key_bytes = binascii.unhexlify(public_key_hex)
+        vk = ecdsa.VerifyingKey.from_string(public_key_bytes, curve=ecdsa.SECP256k1)
+        return vk.verify(binascii.unhexlify(firma_hex), mensaje.encode())
+    except:
+        return False
+
+# ==========================================
+# RUTAS DEL SERVIDOR
+# ==========================================
+
 @app.route('/')
 def index():
     return send_from_directory('.', 'index.html')
 
-# RUTA PARA RECIBIR MINEROS
 @app.route('/minar', methods=['POST'])
 def recibir_bloque():
     datos = request.json
@@ -54,32 +70,69 @@ def recibir_bloque():
     
     if h.startswith("0" * DIFICULTAD):
         try:
-            ultimo_bloque = list(blockchain.find().sort("indice", -1).limit(1))[0]
+            ultimo = list(blockchain.find().sort("indice", -1).limit(1))[0]
             nuevo_bloque = {
-                "indice": ultimo_bloque["indice"] + 1,
+                "indice": ultimo["indice"] + 1,
                 "timestamp": time.time(),
-                "transacciones": [{"emisor": "SISTEMA", "receptor": direccion, "monto": RECOMPENSA, "tipo": "MINADO"}],
-                "hash_anterior": ultimo_bloque["hash"],
+                "transacciones": [{
+                    "emisor": "SISTEMA", 
+                    "receptor": direccion, 
+                    "monto": RECOMPENSA_MINADO, 
+                    "tipo": "MINADO"
+                }],
+                "hash_anterior": ultimo["hash"],
                 "nonce": nonce,
                 "hash": h
             }
             blockchain.insert_one(nuevo_bloque)
-            return jsonify({"status": "ok", "monto": RECOMPENSA}), 200
+            return jsonify({"status": "ok", "mensaje": "Bloque minado"}), 200
         except Exception as e:
             return jsonify({"status": "error", "mensaje": str(e)}), 500
-            
-    return jsonify({"status": "error", "mensaje": "Dificultad no alcanzada"}), 400
+    return jsonify({"status": "error", "mensaje": "Dificultad baja"}), 400
 
-# RUTA PARA VER LA CADENA
-@app.route('/cadena', methods=['GET'])
-def ver_cadena():
+@app.route('/transferir', methods=['POST'])
+def transferir():
+    datos = request.json
+    emisor = datos.get("emisor")
+    receptor = datos.get("receptor")
+    monto = float(datos.get("monto"))
+    firma = datos.get("firma")
+
+    # 1. Verificar firma
+    mensaje = f"{emisor}{receptor}{monto}"
+    if not verificar_firma(emisor, mensaje, firma):
+        return jsonify({"status": "error", "mensaje": "Firma digital inválida"}), 401
+
+    # 2. Verificar saldo
+    if obtener_saldo(emisor) < monto:
+        return jsonify({"status": "error", "mensaje": "Saldo insuficiente"}), 400
+
+    # 3. Registrar transacción en un nuevo bloque
     try:
-        datos = list(blockchain.find({}, {"_id": 0}))
-        return jsonify(datos), 200
+        ultimo = list(blockchain.find().sort("indice", -1).limit(1))[0]
+        nuevo_bloque = {
+            "indice": ultimo["indice"] + 1,
+            "timestamp": time.time(),
+            "transacciones": [{
+                "emisor": emisor, 
+                "receptor": receptor, 
+                "monto": monto, 
+                "tipo": "TRANSFERENCIA"
+            }],
+            "hash_anterior": ultimo["hash"],
+            "nonce": 0, # Las transacciones no requieren minado forzoso aquí
+            "hash": hashlib.sha256(f"{emisor}{receptor}{monto}{time.time()}".encode()).hexdigest()
+        }
+        blockchain.insert_one(nuevo_bloque)
+        return jsonify({"status": "ok", "mensaje": "Transferencia exitosa"}), 200
     except Exception as e:
         return jsonify({"status": "error", "mensaje": str(e)}), 500
 
+@app.route('/cadena', methods=['GET'])
+def ver_cadena():
+    datos = list(blockchain.find({}, {"_id": 0}))
+    return jsonify(datos), 200
+
 if __name__ == "__main__":
-    crear_genesis()
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
