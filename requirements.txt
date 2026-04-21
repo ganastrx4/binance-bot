@@ -3,3 +3,5 @@ flask-cors
 pymongo
 dnspython
 ecdsa
+requests
+gunicorn
