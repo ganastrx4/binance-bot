@@ -24,7 +24,7 @@
                 <p class="text-slate-500 font-mono text-sm">Economy Bridge: Chimalhuacán ⇄ Binance</p>
             </div>
             
-            <button id="connect-wallet" onclick="connectMetaMask()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-full font-bold transition-all flex items-center gap-2">
+            <button id="connect-wallet" onclick="connectMetaMask()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-full font-bold transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20">
                 🦊 CONECTAR METAMASK
             </button>
         </header>
@@ -32,29 +32,29 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
             <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="card p-8 border-l-4 border-l-yellow-500">
-                    <h3 class="text-slate-400 text-xs font-bold uppercase mb-2">Mi Saldo Acumulado</h3>
+                    <h3 class="text-slate-400 text-xs font-bold uppercase mb-2 tracking-widest">Mi Saldo Acumulado</h3>
                     <p id="user-balance" class="text-4xl font-black text-yellow-400 font-mono">0.00 CHC</p>
-                    <button onclick="sincronizarConBinance()" class="mt-4 text-[10px] bg-slate-800 hover:bg-slate-700 p-2 rounded text-slate-300 transition-all">
-                        🔄 ACTUALIZAR VALOR EN BLOCKCHAIN (Gasta gas)
+                    <button onclick="sincronizarConBinance()" class="mt-4 text-[10px] bg-slate-800 hover:bg-slate-700 p-2 rounded text-slate-300 transition-all font-bold">
+                        🔄 ACTUALIZAR VALOR EN BLOCKCHAIN
                     </button>
                 </div>
-                <div class="card p-8">
-                    <h3 class="text-slate-400 text-xs font-bold uppercase mb-2">Suministro Global</h3>
+                <div class="card p-8 border-l-4 border-l-green-500">
+                    <h3 class="text-slate-400 text-xs font-bold uppercase mb-2 tracking-widest">Suministro Global</h3>
                     <p id="total-supply" class="text-4xl font-black text-white font-mono">0 CHC</p>
-                    <p id="status-bridge" class="text-[10px] text-green-500 mt-2 font-mono">PUENTE SINCRONIZADO</p>
+                    <p id="status-bridge" class="text-[10px] text-green-500 mt-2 font-mono tracking-tighter">PUENTE OPERATIVO ✅</p>
                 </div>
             </div>
 
             <div class="swap-card p-6 rounded-2xl flex flex-col justify-center">
-                <h3 class="text-blue-400 text-center font-black uppercase text-sm mb-4">Panel de Canje BCHC</h3>
-                <div class="bg-black/40 p-4 rounded-xl mb-4">
-                    <p class="text-[10px] text-slate-500 uppercase">Vas a recibir (BCHC)</p>
-                    <p id="bchc-preview" class="text-2xl font-bold text-white">0.00</p>
+                <h3 class="text-blue-400 text-center font-black uppercase text-sm mb-4">Intercambio BCHC</h3>
+                <div class="bg-black/40 p-4 rounded-xl mb-4 text-center">
+                    <p class="text-[10px] text-slate-500 uppercase">Estimación de Recepción</p>
+                    <p id="bchc-preview" class="text-2xl font-bold text-white">0.00 BCHC</p>
                 </div>
                 <button onclick="ejecutarSwap()" class="w-full bg-blue-500 hover:bg-blue-400 py-4 rounded-xl font-black text-black transition-transform active:scale-95 shadow-lg shadow-blue-500/20">
-                    INTERCAMBIAR AHORA
+                    CANJEAR AHORA
                 </button>
-                <p class="text-[9px] text-slate-500 text-center mt-3 uppercase italic">Requiere BNB para el intercambio</p>
+                <p class="text-[9px] text-slate-500 text-center mt-3 uppercase italic">Coste: 0.0001 BNB + Gas</p>
             </div>
         </div>
 
@@ -67,12 +67,12 @@
 
         <div class="card overflow-hidden">
             <div class="p-5 border-b border-slate-800 bg-slate-900/50">
-                <h2 class="font-bold text-lg">Historial de Minería</h2>
+                <h2 class="font-bold text-lg text-slate-300">Libro de Minería (Nodo Chimalhuacán)</h2>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left">
-                    <thead class="bg-slate-900/80 text-slate-500 text-xs">
-                        <tr><th class="p-5">ID</th><th class="p-5">Minero</th><th class="p-5">Monto</th><th class="p-5">Hash</th></tr>
+                    <thead class="bg-slate-900/80 text-slate-500 text-xs uppercase tracking-wider">
+                        <tr><th class="p-5">ID Bloque</th><th class="p-5">Minero</th><th class="p-5">Monto (CHC)</th><th class="p-5">Hash de Red</th></tr>
                     </thead>
                     <tbody id="blockchain-table" class="divide-y divide-slate-800"></tbody>
                 </table>
@@ -85,59 +85,84 @@
         const BRIDGE_URL = 'https://chc-economy.onrender.com/sincronizar-ahora';
         const POOL_ADDRESS = '0x02E309e567c1783B5b3a9c67D00d9393d0219412';
 
-        // 1. Conectar MetaMask
+        // Asegurar que el usuario esté en BNB Smart Chain (ID 56 / 0x38)
+        async function switchNetwork() {
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: '0x38' }],
+                });
+            } catch (e) {
+                if (e.code === 4902) {
+                    await window.ethereum.request({
+                        method: 'wallet_addEthereumChain',
+                        params: [{
+                            chainId: '0x38',
+                            chainName: 'Binance Smart Chain',
+                            nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+                            rpcUrls: ['https://bsc-dataseed.binance.org/'],
+                            blockExplorerUrls: ['https://bscscan.com/']
+                        }]
+                    });
+                }
+            }
+        }
+
         async function connectMetaMask() {
             if (window.ethereum) {
+                await switchNetwork();
                 const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
                 document.getElementById('connect-wallet').innerText = "✅ " + accounts[0].substring(0,6) + "...";
                 document.getElementById('wallet-input').value = accounts[0];
                 updateDashboard();
             } else {
-                alert("Por favor instala MetaMask");
+                alert("Instala MetaMask");
             }
         }
 
-        // 2. Sincronizar (Gasta Gas del servidor)
         async function sincronizarConBinance() {
-            document.getElementById('status-bridge').innerText = "Sincronizando...";
+            const btn = document.getElementById('status-bridge');
+            btn.innerText = "Sincronizando con la Red...";
             try {
                 const res = await fetch(BRIDGE_URL);
                 const data = await res.json();
                 if(data.status === "Sincronizado") {
-                    alert("¡Sincronización Exitosa! Hash: " + data.tx_hash);
-                    document.getElementById('status-bridge').innerText = "PUENTE ACTUALIZADO ✅";
+                    alert("¡Éxito! Valor actualizado en Binance.\nTX: " + data.tx_hash);
+                    btn.innerText = "PUENTE ACTUALIZADO ✅";
                 }
             } catch (e) {
-                alert("Error al sincronizar");
+                alert("Error: El servidor de Render no responde");
+                btn.innerText = "ERROR DE CONEXIÓN ❌";
             }
         }
 
-        // 3. Ejecutar Intercambio (Swap)
         async function ejecutarSwap() {
             if (!window.ethereum) return alert("Conecta MetaMask");
+            await switchNetwork();
+
             const provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send("eth_requestAccounts", []);
             const signer = provider.getSigner();
             
-            // ABI para la función de intercambio
             const abi = [{"inputs":[{"internalType":"uint256","name":"cantidadCHC","type":"uint256"}],"name":"intercambiar","outputs":[],"stateMutability":"payable","type":"function"}];
             const contract = new ethers.Contract(POOL_ADDRESS, abi, signer);
             
-            const monto = prompt("¿Cuántos CHC deseas cambiar?");
-            if(!monto) return;
+            let monto = prompt("¿Cuántos CHC de tu saldo deseas canjear por BCHC?");
+            if(!monto || isNaN(monto)) return;
 
             try {
-                // Enviamos el intercambio con 0.001 BNB para dar valor (puedes ajustar el valor)
-                const tx = await contract.intercambiar(monto, { value: ethers.utils.parseEther("0.001") });
-                alert("Transacción enviada. Esperando confirmación...");
+                // He bajado el coste a 0.0001 BNB para que tu prueba pase con éxito
+                const tx = await contract.intercambiar(Math.floor(monto), { 
+                    value: ethers.utils.parseEther("0.0001") 
+                });
+                alert("Transacción enviada a Binance BSC...");
                 await tx.wait();
-                alert("¡Intercambio completado con éxito!");
+                alert("¡Felicidades! Intercambio realizado.");
             } catch (e) {
-                console.error(e);
-                alert("Error en el intercambio: " + e.message);
+                alert("Error: " + (e.reason || e.message));
             }
         }
 
-        // 4. Lógica de la tabla (Tu código original mejorado)
         async function updateDashboard() {
             try {
                 const response = await fetch(API_URL);
@@ -148,22 +173,22 @@
                 let totalSupply = 0;
                 let tableHtml = '';
 
-                chain.reverse().forEach(block => {
+                [...chain].reverse().forEach(block => {
                     const tx = block.transacciones[0];
                     if(tx) {
                         const monto = parseFloat(tx.monto);
                         totalSupply += monto;
                         if(myWallet && tx.receptor.toLowerCase() === myWallet) userBalance += monto;
 
-                        tableHtml += `<tr><td class="p-5">#${block.indice}</td><td class="p-5 font-mono text-[10px]">${tx.receptor}</td><td class="p-5 text-yellow-500">+${monto}</td><td class="p-5 text-[8px] text-slate-600">${block.hash.substring(0,20)}...</td></tr>`;
+                        tableHtml += `<tr class="hover:bg-slate-800/40"><td class="p-5 font-mono text-cyan-500 font-bold">#${block.indice}</td><td class="p-5 font-mono text-[10px] text-slate-400">${tx.receptor}</td><td class="p-5 text-yellow-500 font-black">+${monto.toLocaleString()}</td><td class="p-5 text-[8px] text-slate-600 font-mono">${block.hash.substring(0,35)}...</td></tr>`;
                     }
                 });
 
-                document.getElementById('blockchain-table').innerHTML = tableHtml;
-                document.getElementById('user-balance').innerText = userBalance.toFixed(2) + ' CHC';
+                document.getElementById('blockchain-table').innerHTML = tableHtml || '<tr><td colspan="4" class="p-10 text-center">Sin bloques</td></tr>';
+                document.getElementById('user-balance').innerText = userBalance.toLocaleString() + ' CHC';
                 document.getElementById('total-supply').innerText = totalSupply.toLocaleString() + ' CHC';
-                document.getElementById('bchc-preview').innerText = (userBalance / 10).toFixed(2); // Ejemplo de tasa
-            } catch (err) { console.log(err); }
+                document.getElementById('bchc-preview').innerText = (userBalance / 10).toFixed(2) + ' BCHC';
+            } catch (err) { console.error(err); }
         }
 
         setInterval(updateDashboard, 15000);
