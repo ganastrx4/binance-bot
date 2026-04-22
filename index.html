@@ -3,15 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CharlyScan - Economy & Bridge</title>
+    <title>CharlyScan - Panel En Vivo</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
     <style>
-        body { background: #070b14; color: #f8fafc; font-family: 'Segoe UI', sans-serif; }
+        body { background: #070b14; color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .card { background: #111827; border: 1px solid #1f2937; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); }
         .neon-text { color: #00f2ff; text-shadow: 0 0 15px rgba(0, 242, 255, 0.6); }
         .neon-border:focus { border-color: #00f2ff; box-shadow: 0 0 10px rgba(0, 242, 255, 0.3); }
-        .swap-card { background: linear-gradient(145deg, #111827, #1f2937); border: 1px solid #3b82f6; }
+        .mining-anim { animation: blink 1.5s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #070b14; }
+        ::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 10px; }
     </style>
 </head>
 <body class="p-4 md:p-10">
@@ -19,135 +22,136 @@
         <header class="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
             <div>
                 <h1 class="text-5xl font-black neon-text tracking-tighter">CHARLYSCAN</h1>
-                <p class="text-slate-500 font-mono text-sm">Bridge: Chimalhuacán ⇄ Binance Smart Chain</p>
+                <p class="text-slate-500 font-mono text-sm">Explorador de bloques para NewWorld Network</p>
             </div>
-            
-            <button id="connect-wallet" onclick="connectMetaMask()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-full font-bold transition-all flex items-center gap-2">
-                🦊 CONECTAR METAMASK
-            </button>
+            <div class="card p-4 flex items-center gap-4">
+                <div class="text-right">
+                    <p class="text-xs text-slate-400 uppercase tracking-widest">Estado del Nodo</p>
+                    <p class="text-green-400 font-bold flex items-center justify-end gap-2">
+                        <span class="mining-anim">●</span> EN VIVO (RENDER)
+                    </p>
+                </div>
+                <div class="h-10 w-px bg-slate-700"></div>
+                <div>
+                    <p id="total-blocks" class="text-2xl font-mono font-bold text-white">Bloques: 0</p>
+                </div>
+            </div>
         </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
-            <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="card p-8 border-l-4 border-l-yellow-500">
-                    <h3 class="text-slate-400 text-xs font-bold uppercase mb-2">Mi Saldo Acumulado (Nodo)</h3>
-                    <p id="user-balance" class="text-4xl font-black text-yellow-400 font-mono">0.00 CHC</p>
-                    <p class="text-[10px] text-slate-500 mt-2 italic">Saldo disponible para retirar a Binance</p>
-                </div>
-                <div class="card p-8">
-                    <h3 class="text-slate-400 text-xs font-bold uppercase mb-2">Suministro Global</h3>
-                    <p id="total-supply" class="text-4xl font-black text-white font-mono">370,460 CHC</p>
-                    <p id="status-bridge" class="text-[10px] text-green-500 mt-2 font-mono">CONECTADO AL CONTRATO BCHC</p>
-                </div>
-            </div>
-
-            <div class="swap-card p-6 rounded-2xl flex flex-col justify-center">
-                <h3 class="text-blue-400 text-center font-black uppercase text-sm mb-4">Panel de Canje BCHC</h3>
-                <div class="bg-black/40 p-4 rounded-xl mb-4">
-                    <p class="text-[10px] text-slate-500 uppercase">Recibirás en MetaMask (BCHC)</p>
-                    <p id="bchc-preview" class="text-2xl font-bold text-white">0.00</p>
-                </div>
-                <button onclick="ejecutarSwap()" class="w-full bg-blue-500 hover:bg-blue-400 py-4 rounded-xl font-black text-black transition-transform active:scale-95 shadow-lg shadow-blue-500/20">
-                    INTERCAMBIAR AHORA
+        <div class="card p-6 mb-8 border-l-4 border-l-cyan-500">
+            <label class="block mb-3 text-sm font-semibold text-slate-300">Rastreador de Minería Personal</label>
+            <div class="flex gap-2">
+                <input type="text" id="wallet-input" 
+                       placeholder="Pega aquí tu dirección pública (Wallet) y pulsa Enter..." 
+                       class="w-full bg-black/50 border border-slate-700 p-4 rounded-xl focus:outline-none neon-border text-cyan-400 font-mono transition-all">
+                <button onclick="updateDashboard()" class="bg-cyan-600 hover:bg-cyan-500 px-6 rounded-xl font-bold transition-colors">
+                    BUSCAR
                 </button>
-                <p class="text-[9px] text-slate-500 text-center mt-3 uppercase italic">El gas lo paga la Pool de Chimalhuacán</p>
             </div>
         </div>
 
-        <div class="card p-6 mb-8 border-l-4 border-l-cyan-500">
-            <div class="flex gap-2">
-                <input type="text" id="wallet-input" placeholder="Dirección de billetera..." class="w-full bg-black/50 border border-slate-700 p-4 rounded-xl focus:outline-none neon-border text-cyan-400 font-mono">
-                <button onclick="updateDashboard()" class="bg-cyan-600 hover:bg-cyan-500 px-6 rounded-xl font-bold">ACTUALIZAR</button>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div class="card p-8 bg-gradient-to-br from-gray-900 to-black border-l-4 border-l-yellow-500">
+                <h3 class="text-slate-400 text-xs font-bold uppercase mb-4 tracking-widest">Mi Saldo Acumulado</h3>
+                <p id="user-balance" class="text-4xl font-black text-yellow-400 font-mono">0.00 CHC</p>
+                <p class="text-slate-500 text-xs mt-2">Basado en bloques validados</p>
+            </div>
+            <div class="card p-8 bg-gradient-to-br from-gray-900 to-black">
+                <h3 class="text-slate-400 text-xs font-bold uppercase mb-4 tracking-widest">Suministro en Circulación</h3>
+                <p id="total-supply" class="text-4xl font-black text-white font-mono">0 CHC</p>
+                <p class="text-slate-500 text-xs mt-2">Límite: 21,000,000,000 CHC</p>
+            </div>
+            <div class="card p-8 bg-gradient-to-br from-gray-900 to-black border-dashed border-slate-700">
+                <h3 class="text-slate-400 text-xs font-bold uppercase mb-4 tracking-widest">Dificultad de Red</h3>
+                <p class="text-4xl font-black text-purple-500 font-mono">5 ZEROS</p>
+                <p class="text-slate-500 text-xs mt-2">Hash Rate: Estable</p>
             </div>
         </div>
 
         <div class="card overflow-hidden">
-            <div class="p-5 border-b border-slate-800 bg-slate-900/50">
-                <h2 class="font-bold text-lg">Historial de Minería en Tiempo Real</h2>
+            <div class="p-5 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
+                <h2 class="font-bold text-lg text-slate-200">Historial Reciente de la Blockchain</h2>
+                <span class="text-xs text-slate-500 tracking-tighter">NODO MAESTRO: RENDER CLOUD</span>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-left">
-                    <thead class="bg-slate-900/80 text-slate-500 text-xs">
-                        <tr><th class="p-5">ID</th><th class="p-5">Minero</th><th class="p-5">Monto</th><th class="p-5">Estado</th></tr>
+                    <thead class="bg-slate-900/80 text-slate-500 text-xs uppercase">
+                        <tr>
+                            <th class="p-5">ID Bloque</th>
+                            <th class="p-5">Minero (Receptor)</th>
+                            <th class="p-5">Monto (CHC)</th>
+                            <th class="p-5">Firma (Hash)</th>
+                        </tr>
                     </thead>
-                    <tbody id="blockchain-table" class="divide-y divide-slate-800"></tbody>
+                    <tbody id="blockchain-table" class="divide-y divide-slate-800">
+                    </tbody>
                 </table>
             </div>
         </div>
     </div>
 
     <script>
-        // CONFIGURACIÓN DEL PUENTE
-        const RENDER_URL = 'https://binance-bot-hna7.onrender.com';
-        const TOKEN_ADDRESS = '0xf74c6721970CA2735401F78476327a3d8867e73b';
+        // Al estar en el mismo servidor de Render, usamos la ruta relativa
+        const API_URL = window.location.origin + '/cadena';
 
-        // 1. Conectar MetaMask
-        async function connectMetaMask() {
-            if (window.ethereum) {
-                try {
-                    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                    document.getElementById('connect-wallet').innerText = "✅ " + accounts[0].substring(0,6) + "...";
-                    document.getElementById('wallet-input').value = accounts[0];
-                    updateDashboard();
-                } catch (err) { alert("Error al conectar wallet"); }
-            } else {
-                alert("Por favor instala MetaMask");
-            }
-        }
-
-        // 2. Ejecutar Intercambio (Llamada al Puente de Render)
-        async function ejecutarSwap() {
-            const wallet = document.getElementById('wallet-input').value;
-            if (!wallet || wallet.length < 20) return alert("Primero conecta tu MetaMask");
-
-            const monto = prompt("¿Cuántos CHC deseas convertir a BCHC?");
-            if (!monto || isNaN(monto)) return;
-
-            document.getElementById('status-bridge').innerText = "⏳ PROCESANDO EN BLOCKCHAIN...";
-
-            try {
-                const response = await fetch(`${RENDER_URL}/canjear`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        wallet: wallet,
-                        cantidad: monto
-                    })
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    alert("✅ ¡ÉXITO! Tokens enviados.\nHash: " + data.tx_hash);
-                    document.getElementById('status-bridge').innerText = "CANJE COMPLETADO ✅";
-                } else {
-                    alert("❌ Error: " + data.mensaje);
-                    document.getElementById('status-bridge').innerText = "ERROR EN EL CANJE";
-                }
-            } catch (error) {
-                console.error(error);
-                alert("Error de conexión con el servidor de Render");
-            }
-        }
-
-        // 3. Actualizar Dashboard (Consultar saldo del Nodo)
         async function updateDashboard() {
             try {
-                const response = await fetch(`${RENDER_URL}/`);
-                const data = await response.json();
+                const response = await fetch(API_URL);
+                if (!response.ok) throw new Error('Servidor fuera de línea');
                 
-                document.getElementById('total-supply').innerText = data.suministro_global.toLocaleString() + ' CHC';
+                const chain = await response.json();
+                const myWallet = document.getElementById('wallet-input').value.trim();
                 
-                // Simulación de saldo de usuario (En tu app real esto viene de tu /cadena)
-                const wallet = document.getElementById('wallet-input').value.toLowerCase();
-                if(wallet) {
-                    // Aquí podrías filtrar el saldo por billetera
-                    document.getElementById('user-balance').innerText = 'Sincronizado';
-                }
-            } catch (err) { console.log("Error actualizando dashboard:", err); }
+                let userBalance = 0;
+                let totalSupply = 0;
+                let tableHtml = '';
+
+                // Ordenar para mostrar los más nuevos primero
+                const recentBlocks = [...chain].reverse();
+
+                recentBlocks.forEach(block => {
+                    const tx = block.transacciones[0];
+                    if(tx) {
+                        const monto = parseFloat(tx.monto);
+                        totalSupply += monto;
+
+                        if(myWallet !== "" && tx.receptor === myWallet) {
+                            userBalance += monto;
+                        }
+
+                        tableHtml += `
+                            <tr class="hover:bg-slate-800/40 transition-all group">
+                                <td class="p-5 font-mono text-cyan-500 font-bold text-lg">#${block.indice}</td>
+                                <td class="p-5">
+                                    <span class="font-mono text-xs text-slate-400 group-hover:text-slate-200 transition-colors">
+                                        ${tx.receptor}
+                                    </span>
+                                </td>
+                                <td class="p-5 font-black text-yellow-500">+${monto.toLocaleString()}</td>
+                                <td class="p-5 font-mono text-[10px] text-slate-600">${block.hash.substring(0,32)}...</td>
+                            </tr>
+                        `;
+                    }
+                });
+
+                document.getElementById('blockchain-table').innerHTML = tableHtml || '<tr><td colspan="4" class="p-10 text-center text-slate-500">Esperando primer bloque...</td></tr>';
+                document.getElementById('user-balance').innerText = userBalance.toLocaleString(undefined, {minimumFractionDigits: 2}) + ' CHC';
+                document.getElementById('total-supply').innerText = totalSupply.toLocaleString() + ' CHC';
+                document.getElementById('total-blocks').innerText = 'Bloques: ' + (chain.length - 1);
+                document.getElementById('total-blocks').classList.remove('text-red-500');
+
+            } catch (err) {
+                console.error("Error de conexión:", err);
+                document.getElementById('total-blocks').innerText = 'Nodo Offline';
+                document.getElementById('total-blocks').classList.add('text-red-500');
+            }
         }
 
-        setInterval(updateDashboard, 30000);
+        document.getElementById('wallet-input').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') updateDashboard();
+        });
+
+        setInterval(updateDashboard, 10000); // Actualiza cada 10 seg
         updateDashboard();
     </script>
 </body>
