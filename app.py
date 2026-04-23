@@ -25,7 +25,7 @@ PORT = int(os.environ.get("PORT", 10000))
 
 MONGO_URI = os.environ.get(
     "MONGO_URI",
-    "mongodb+srv://charly:caseta82%2A@cluster0.daebfm2.mongodb.net/charlycoin_db?retryWrites=true&w=majority"
+    mongodb+srv://charly:caseta82%2A@cluster0.daebfm2.mongodb.net/charlycoin_db?retryWrites=true&w=majority&tls=true&connectTimeoutMS=30000&socketTimeoutMS=30000&serverSelectionTimeoutMS=30000
 )
 
 DIFICULTAD = 5
@@ -42,9 +42,9 @@ client = MongoClient(
     MONGO_URI,
     maxPoolSize=5,
     minPoolSize=1,
-    serverSelectionTimeoutMS=5000,
-    connectTimeoutMS=5000,
-    socketTimeoutMS=10000
+    serverSelectionTimeoutMS=30000,
+    connectTimeoutMS=30000,
+    socketTimeoutMS=30000
 )
 
 db = client["charlycoin_db"]
