@@ -11,7 +11,8 @@ CORS(app)
 # ==========================================
 # ⚙️ CONFIGURACIÓN DE MONGODB
 # ==========================================
-MONGO_URI = "mongodb+srv://charly:caseta82%2A@cluster0.daebfm2.mongodb.net/?appName=Cluster0"
+# Se cambió el * por %2A para que Render no falle en la conexión
+MONGO_URI = "mongodb+srv://charly:caseta82%2A@cluster0.daebfm2.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 client = MongoClient(MONGO_URI)
 db = client['charlycoin_db']
 collection = db['blockchain']
@@ -21,7 +22,7 @@ RECOMPENSA_INICIAL = 18
 HALVING_CADA = 21000
 
 # ==========================================
-# 🎨 TU DISEÑO: CHARLYSCAN (HTML)
+# 🎨 TU DISEÑO: CHARLYSCAN (HTML) - SIN CAMBIOS
 # ==========================================
 HTML_INDEX = """
 <!DOCTYPE html>
@@ -117,7 +118,6 @@ HTML_INDEX = """
     </div>
 
     <script>
-        // Al estar en el mismo servidor de Render, usamos la ruta relativa
         const API_URL = window.location.origin + '/cadena';
 
         async function updateDashboard() {
@@ -132,7 +132,6 @@ HTML_INDEX = """
                 let totalSupply = 0;
                 let tableHtml = '';
 
-                // Ordenar para mostrar los más nuevos primero
                 const recentBlocks = [...chain].reverse();
 
                 recentBlocks.forEach(block => {
@@ -177,7 +176,7 @@ HTML_INDEX = """
             if (e.key === 'Enter') updateDashboard();
         });
 
-        setInterval(updateDashboard, 10000); // Actualiza cada 10 seg
+        setInterval(updateDashboard, 10000);
         updateDashboard();
     </script>
 </body>
@@ -238,7 +237,6 @@ def minar():
 
 @app.route("/cadena", methods=["GET"])
 def ver_cadena():
-    # Convertimos los datos de Mongo a una lista JSON válida
     cadena = list(collection.find({}, {'_id': 0}))
     return jsonify(cadena)
 
