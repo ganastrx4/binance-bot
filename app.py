@@ -1,102 +1,113 @@
-import os
+import hashlib
+import json
+import time
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from web3 import Web3
-import json
 
 app = Flask(__name__)
 CORS(app)
 
 # ==========================================
-# ⚙️ CONFIGURACIÓN DE RED Y CONTRATOS
+# ⚙️ CONFIGURACIÓN
 # ==========================================
-# Si usas variables de entorno en Render, las tomará de ahí. 
-# Si no, usará estas por defecto:
-RPC_URL = "https://bsc-dataseed.binance.org/"
-TOKEN_ADDRESS = os.getenv('TOKEN_ADDRESS', '0xf74c6721970CA2735401F78476327a3d8867e73b')
-POOL_ADDRESS = os.getenv('POOL_ADDRESS', '0x02E309e567c1783B5b3a9c67D00d9393d0219412')
-# Tu llave privada (Para que la Pool firme las transacciones)
-PRIVATE_KEY = os.getenv('POOL_PRIVATE_KEY') 
+DIFICULTAD = 5
+RECOMPENSA_INICIAL = 18
+HALVING_CADA = 21000
 
-w3 = Web3(Web3.HTTPProvider(RPC_URL))
+blockchain = []
+pending_tx = []
 
-# ABI mínima para la función MINT del nuevo contrato
-ABI_TOKEN = [
-    {
-        "inputs": [
-            {"internalType": "address", "name": "to", "type": "address"},
-            {"internalType": "uint256", "name": "amount", "type": "uint256"}
-        ],
-        "name": "mint",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
+# ==========================================
+# 🧠 FUNCIONES BASE
+# ==========================================
+def calcular_hash(bloque):
+    bloque_string = json.dumps(bloque, sort_keys=True).encode()
+    return hashlib.sha256(bloque_string).hexdigest()
+
+def crear_bloque_genesis():
+    bloque = {
+        "indice": 0,
+        "timestamp": time.time(),
+        "transacciones": [],
+        "nonce": 0,
+        "hash_anterior": "0"
     }
-]
+    bloque["hash"] = calcular_hash(bloque)
+    blockchain.append(bloque)
+
+def calcular_recompensa():
+    bloques = len(blockchain)
+    halvings = bloques // HALVING_CADA
+    recompensa = RECOMPENSA_INICIAL / (2 ** halvings)
+    return max(recompensa, 0.00000001)
 
 # ==========================================
-# 📊 BASE DE DATOS TEMPORAL (Tus 370k CHC)
+# ⛏️ MINAR BLOQUE
 # ==========================================
-# Aquí es donde el servidor recuerda cuánto ha minado cada quien
-# En producción, esto debería conectar con tu archivo JSON o SQL
-saldos_mineros = {
-    "global": 370460.0,
-    # "0xTuBilletera": 1000.0 (Esto se llena con los POST /minar)
-}
+@app.route("/minar", methods=["POST"])
+def minar():
+    data = request.json
+    wallet = data.get("wallet")
+    nonce = data.get("nonce")
 
-@app.route('/')
-def home():
+    if not wallet:
+        return jsonify({"error": "Wallet requerida"}), 400
+
+    hash_prueba = hashlib.sha256(f"{wallet}{nonce}".encode()).hexdigest()
+
+    if not hash_prueba.startswith("0" * DIFICULTAD):
+        return jsonify({"error": "Hash inválido"}), 400
+
+    recompensa = calcular_recompensa()
+
+    nuevo_bloque = {
+        "indice": len(blockchain),
+        "timestamp": time.time(),
+        "transacciones": [
+            {
+                "emisor": "RED",
+                "receptor": wallet,
+                "monto": recompensa
+            }
+        ],
+        "nonce": nonce,
+        "hash_anterior": blockchain[-1]["hash"]
+    }
+
+    nuevo_bloque["hash"] = calcular_hash(nuevo_bloque)
+    blockchain.append(nuevo_bloque)
+
     return jsonify({
-        "proyecto": "NewWorld Network - Chimalhuacán",
-        "token": TOKEN_ADDRESS,
-        "suministro_global": saldos_mineros["global"]
+        "mensaje": "Bloque minado",
+        "recompensa": recompensa,
+        "bloque": nuevo_bloque
     })
 
 # ==========================================
-# 🚀 RUTA DE CANJE (EL PUENTE)
+# 📊 VER CADENA
 # ==========================================
-@app.route('/canjear', methods=['POST'])
-def canjear():
-    datos = request.json
-    user_wallet = datos.get('wallet')
-    cantidad = float(datos.get('cantidad'))
+@app.route("/cadena", methods=["GET"])
+def ver_cadena():
+    return jsonify(blockchain)
 
-    # 1. Validar si el usuario tiene saldo en el nodo
-    # (Aquí deberías buscar en tu base de datos real)
-    if saldos_mineros["global"] < cantidad:
-        return jsonify({"mensaje": "Saldo insuficiente en el nodo"}), 400
+# ==========================================
+# 💰 BALANCE
+# ==========================================
+@app.route("/balance/<wallet>", methods=["GET"])
+def balance(wallet):
+    total = 0
+    for bloque in blockchain:
+        for tx in bloque["transacciones"]:
+            if tx["receptor"] == wallet:
+                total += tx["monto"]
+            if tx["emisor"] == wallet:
+                total -= tx["monto"]
 
-    try:
-        # 2. Preparar la transacción en Binance Smart Chain
-        contract = w3.eth.contract(address=TOKEN_ADDRESS, abi=ABI_TOKEN)
-        
-        # Convertir a formato blockchain (18 decimales)
-        monto_wei = w3.to_wei(cantidad, 'ether')
-        
-        nonce = w3.eth.get_transaction_count(POOL_ADDRESS)
-        
-        tx = contract.functions.mint(user_wallet, monto_wei).build_transaction({
-            'chainId': 56, # BSC Mainnet
-            'gas': 100000,
-            'gasPrice': w3.to_wei('3', 'gwei'),
-            'nonce': nonce,
-        })
+    return jsonify({"wallet": wallet, "balance": total})
 
-        # 3. Firmar y Enviar
-        signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-
-        # 4. Descontar del saldo del nodo para evitar duplicidad
-        saldos_mineros["global"] -= cantidad
-        
-        return jsonify({
-            "status": "Exito",
-            "tx_hash": w3.to_hex(tx_hash),
-            "mensaje": f"Se han enviado {cantidad} BCHC a tu billetera"
-        })
-
-    except Exception as e:
-        return jsonify({"mensaje": f"Error en blockchain: {str(e)}"}), 500
-
+# ==========================================
+# 🚀 INICIO
+# ==========================================
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=10000)
+    crear_bloque_genesis()
+    app.run(host="0.0.0.0", port=10000)
