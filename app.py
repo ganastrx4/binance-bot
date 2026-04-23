@@ -1,42 +1,49 @@
-import hashlib
-import json
-import time
 import os
+import time
+import json
+import hashlib
 from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
 from pymongo import MongoClient
 
+# ==================================================
+# 🚀 APP PRO CHC NODE
+# ==================================================
 app = Flask(__name__)
 CORS(app)
 
-# ==========================================
-# ⚙️ CONFIGURACIÓN PRO MONGODB
-# ==========================================
-# En Render pon esto en Environment Variables:
-# Key: MONGO_URI
-# Value:
-# mongodb+srv://charly:caseta82%2A@cluster0.daebfm2.mongodb.net/charlycoin_db?retryWrites=true&w=majority&appName=Cluster0
-
+# ==================================================
+# 🔐 MONGODB
+# En Render crear variable:
+# MONGO_URI = mongodb+srv://charly:caseta82%2A@cluster0.daebfm2.mongodb.net/charlycoin_db?retryWrites=true&w=majority&appName=Cluster0
+# ==================================================
 MONGO_URI = os.getenv(
     "MONGO_URI",
     "mongodb+srv://charly:caseta82%2A@cluster0.daebfm2.mongodb.net/charlycoin_db?retryWrites=true&w=majority&appName=Cluster0"
 )
 
-client = MongoClient(MONGO_URI)
+client = MongoClient(
+    MONGO_URI,
+    serverSelectionTimeoutMS=5000
+)
+
 db = client["charlycoin_db"]
 collection = db["blockchain"]
 
-# ==========================================
-# ⚙️ RED
-# ==========================================
+# probar conexión
+client.server_info()
+
+# ==================================================
+# ⚙️ RED CHC
+# ==================================================
 DIFICULTAD = 5
 RECOMPENSA_INICIAL = 18.0
 HALVING_CADA = 21000
 
-# ==========================================
-# 🎨 HTML
-# ==========================================
-HTML_INDEX = """
+# ==================================================
+# 🎨 PANEL WEB
+# ==================================================
+HTML = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -45,197 +52,233 @@ HTML_INDEX = """
 <title>CHARLYSCAN PRO</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-body{background:#070b14;color:#fff}
+body{background:#050816;color:#fff}
 </style>
 </head>
-<body class="p-8">
+<body class="p-6">
 <div class="max-w-6xl mx-auto">
-<h1 class="text-5xl font-black text-cyan-400 mb-6">CHARLYSCAN PRO</h1>
 
-<div class="mb-6">
-<input id="wallet-input" class="border p-3 text-black w-full"
-placeholder="Wallet para revisar balance">
-<button onclick="updateDashboard()" class="bg-cyan-500 px-5 py-3 mt-2 rounded">
-BUSCAR
-</button>
-</div>
+<h1 class="text-5xl font-black text-cyan-400 mb-8">
+CHARLYSCAN PRO
+</h1>
 
 <div class="grid md:grid-cols-3 gap-4 mb-6">
-<div class="bg-gray-900 p-4 rounded">
-<p>Bloques</p>
-<p id="total-blocks">0</p>
+<div class="bg-gray-900 p-5 rounded-xl">
+<p class="text-gray-400">Bloques</p>
+<p id="bloques" class="text-3xl font-bold">0</p>
 </div>
 
-<div class="bg-gray-900 p-4 rounded">
-<p>Supply</p>
-<p id="total-supply">0 CHC</p>
+<div class="bg-gray-900 p-5 rounded-xl">
+<p class="text-gray-400">Supply</p>
+<p id="supply" class="text-3xl font-bold text-yellow-400">0</p>
 </div>
 
-<div class="bg-gray-900 p-4 rounded">
-<p>Mi Balance</p>
-<p id="user-balance">0 CHC</p>
+<div class="bg-gray-900 p-5 rounded-xl">
+<p class="text-gray-400">Nodo</p>
+<p class="text-green-400 font-bold">ONLINE</p>
 </div>
 </div>
 
-<table class="w-full text-sm bg-gray-900 rounded overflow-hidden">
+<div class="mb-6">
+<input id="wallet" placeholder="Wallet..."
+class="w-full p-4 rounded text-black">
+<button onclick="buscar()"
+class="bg-cyan-500 px-5 py-3 rounded mt-2 font-bold">
+BUSCAR BALANCE
+</button>
+<p id="balance" class="mt-3 text-xl text-yellow-400"></p>
+</div>
+
+<div class="bg-gray-900 rounded-xl overflow-hidden">
+<table class="w-full text-sm">
 <thead class="bg-gray-800">
 <tr>
-<th class="p-2">Bloque</th>
-<th class="p-2">Wallet</th>
-<th class="p-2">Monto</th>
-<th class="p-2">Hash</th>
+<th class="p-3">#</th>
+<th class="p-3">Wallet</th>
+<th class="p-3">Monto</th>
+<th class="p-3">Hash</th>
 </tr>
 </thead>
-<tbody id="blockchain-table"></tbody>
+<tbody id="tabla"></tbody>
 </table>
 </div>
 
+</div>
+
 <script>
-const API_URL = window.location.origin + "/cadena";
-
-async function updateDashboard(){
+async function cargar(){
 try{
-const r = await fetch(API_URL);
-const chain = await r.json();
+let r = await fetch('/cadena');
+let data = await r.json();
 
-let totalSupply = 0;
-let userBalance = 0;
-let html = "";
-let wallet = document.getElementById("wallet-input").value.trim();
+let tabla = "";
+let supply = 0;
 
-[...chain].reverse().forEach(block=>{
-if(block.transacciones.length){
-let tx = block.transacciones[0];
-let monto = parseFloat(tx.monto);
+[...data].reverse().forEach(b=>{
+if(b.transacciones.length){
+let tx = b.transacciones[0];
+supply += parseFloat(tx.monto);
 
-totalSupply += monto;
-
-if(wallet && tx.receptor === wallet){
-userBalance += monto;
-}
-
-html += `
-<tr class="border-b border-gray-800">
-<td class="p-2">#${block.indice}</td>
-<td class="p-2">${tx.receptor}</td>
-<td class="p-2 text-yellow-400">${monto}</td>
-<td class="p-2">${block.hash.substring(0,18)}...</td>
+tabla += `
+<tr class='border-b border-gray-800'>
+<td class='p-2'>${b.indice}</td>
+<td class='p-2'>${tx.receptor}</td>
+<td class='p-2 text-yellow-400'>${tx.monto}</td>
+<td class='p-2'>${b.hash.substring(0,18)}...</td>
 </tr>
 `;
 }
 });
 
-document.getElementById("blockchain-table").innerHTML = html;
-document.getElementById("total-blocks").innerText = chain.length - 1;
-document.getElementById("total-supply").innerText = totalSupply + " CHC";
-document.getElementById("user-balance").innerText = userBalance + " CHC";
+document.getElementById("tabla").innerHTML = tabla;
+document.getElementById("bloques").innerText = data.length - 1;
+document.getElementById("supply").innerText = supply.toFixed(2)+" CHC";
 
 }catch(e){
 console.log(e);
 }
 }
 
-setInterval(updateDashboard,10000);
-updateDashboard();
+async function buscar(){
+let wallet = document.getElementById("wallet").value.trim();
+if(!wallet)return;
+
+let r = await fetch('/balance/'+wallet);
+let d = await r.json();
+
+document.getElementById("balance").innerText =
+"Balance: "+d.balance+" CHC";
+}
+
+setInterval(cargar,10000);
+cargar();
 </script>
+
 </body>
 </html>
 """
 
-# ==========================================
+# ==================================================
 # 🔒 FUNCIONES
-# ==========================================
+# ==================================================
 def calcular_hash(bloque):
     limpio = {k: v for k, v in bloque.items() if k not in ["_id", "hash"]}
     texto = json.dumps(limpio, sort_keys=True).encode()
     return hashlib.sha256(texto).hexdigest()
 
-def crear_bloque_genesis():
+
+def crear_genesis():
     if collection.count_documents({}) == 0:
-        bloque = {
+        genesis = {
             "indice": 0,
             "timestamp": time.time(),
             "transacciones": [],
             "nonce": 0,
             "hash_anterior": "0"
         }
-        bloque["hash"] = calcular_hash(bloque)
-        collection.insert_one(bloque)
+        genesis["hash"] = calcular_hash(genesis)
+        collection.insert_one(genesis)
 
-def calcular_recompensa():
+
+def recompensa_actual():
     bloques = collection.count_documents({})
     halvings = bloques // HALVING_CADA
     recompensa = RECOMPENSA_INICIAL / (2 ** halvings)
     return max(recompensa, 0.00000001)
 
-# ==========================================
+
+# ==================================================
 # 🌍 RUTAS
-# ==========================================
+# ==================================================
 @app.route("/")
 def home():
-    return render_template_string(HTML_INDEX)
+    return render_template_string(HTML)
 
-@app.route("/cadena", methods=["GET"])
+
+@app.route("/health")
+def health():
+    return jsonify({"ok": True})
+
+
+@app.route("/cadena")
 def cadena():
-    return jsonify(list(collection.find({}, {"_id": 0})))
+    try:
+        data = list(collection.find({}, {"_id": 0}))
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-@app.route("/balance/<wallet>", methods=["GET"])
+
+@app.route("/balance/<wallet>")
 def balance(wallet):
     total = 0
+
     bloques = list(collection.find({}, {"_id": 0}))
 
-    for bloque in bloques:
-        for tx in bloque["transacciones"]:
+    for b in bloques:
+        for tx in b["transacciones"]:
             if tx["receptor"] == wallet:
                 total += tx["monto"]
+
             if tx["emisor"] == wallet:
                 total -= tx["monto"]
 
     return jsonify({
         "wallet": wallet,
-        "balance": total
+        "balance": round(total, 8)
     })
+
 
 @app.route("/minar", methods=["POST"])
 def minar():
-    data = request.json
+    try:
+        data = request.json
 
-    wallet = data.get("wallet")
-    nonce = data.get("nonce")
+        wallet = data.get("wallet")
+        nonce = str(data.get("nonce"))
 
-    if not wallet:
-        return jsonify({"error": "wallet requerida"}), 400
+        if not wallet:
+            return jsonify({"error": "wallet requerida"}), 400
 
-    hash_prueba = hashlib.sha256(f"{wallet}{nonce}".encode()).hexdigest()
+        prueba = hashlib.sha256(
+            f"{wallet}{nonce}".encode()
+        ).hexdigest()
 
-    if not hash_prueba.startswith("0" * DIFICULTAD):
-        return jsonify({"error": "hash inválido"}), 400
+        if not prueba.startswith("0" * DIFICULTAD):
+            return jsonify({"error": "hash invalido"}), 400
 
-    ultimo = collection.find_one(sort=[("indice", -1)])
+        ultimo = collection.find_one(sort=[("indice", -1)])
 
-    nuevo = {
-        "indice": ultimo["indice"] + 1,
-        "timestamp": time.time(),
-        "transacciones": [{
-            "emisor": "RED",
-            "receptor": wallet,
-            "monto": calcular_recompensa()
-        }],
-        "nonce": nonce,
-        "hash_anterior": ultimo["hash"]
-    }
+        nuevo = {
+            "indice": ultimo["indice"] + 1,
+            "timestamp": time.time(),
+            "transacciones": [{
+                "emisor": "RED",
+                "receptor": wallet,
+                "monto": recompensa_actual()
+            }],
+            "nonce": nonce,
+            "hash_anterior": ultimo["hash"]
+        }
 
-    nuevo["hash"] = calcular_hash(nuevo)
-    collection.insert_one(nuevo)
+        nuevo["hash"] = calcular_hash(nuevo)
 
-    return jsonify({
-        "ok": True,
-        "bloque": nuevo
-    })
+        collection.insert_one(nuevo)
 
-# ==========================================
+        return jsonify({
+            "ok": True,
+            "bloque": nuevo
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ==================================================
 # 🚀 INICIO
-# ==========================================
+# ==================================================
+crear_genesis()
+
 if __name__ == "__main__":
-    crear_bloque_genesis()
-    app.run(host="0.0.0.0", port=10000)
+    port = int(os.getenv("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
