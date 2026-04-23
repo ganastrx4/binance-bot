@@ -91,8 +91,8 @@
     </div>
 
     <script>
-        // Al estar en el mismo servidor de Render, usamos la ruta relativa
-        const API_URL = window.location.origin + '/cadena';
+        // CORRECCIÓN: Usamos la URL completa de tu servicio en Render para evitar el error de Nodo Offline
+        const API_URL = 'https://binance-bot-hna7.onrender.com/cadena';
 
         async function updateDashboard() {
             try {
@@ -106,7 +106,6 @@
                 let totalSupply = 0;
                 let tableHtml = '';
 
-                // Ordenar para mostrar los más nuevos primero
                 const recentBlocks = [...chain].reverse();
 
                 recentBlocks.forEach(block => {
@@ -151,7 +150,7 @@
             if (e.key === 'Enter') updateDashboard();
         });
 
-        setInterval(updateDashboard, 10000); // Actualiza cada 10 seg
+        setInterval(updateDashboard, 10000); 
         updateDashboard();
     </script>
 </body>
