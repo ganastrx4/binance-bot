@@ -1,7 +1,7 @@
 import hashlib
 import json
 import time
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -18,6 +18,57 @@ blockchain = []
 pending_tx = []
 
 # ==========================================
+# 🎨 DISEÑO DE LA INTERFAZ (HTML/CSS)
+# ==========================================
+HTML_INDEX = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CharlyCoin Node | Chimalhuacán</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #0f0f0f; color: #00ff00; font-family: 'Courier New', monospace; }
+        .card { background: #1a1a1a; border: 1px solid #00ff00; color: #00ff00; margin-top: 20px; }
+        .btn-custom { background: #00ff00; color: #000; font-weight: bold; }
+        .stats { font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="text-center mb-5">
+            <h1>🚀 CHARLYCOIN BCHC NODE</h1>
+            <p>Estado: <span class="badge bg-success">OPERATIVO</span> | Red: Binance Smart Chain</p>
+        </div>
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card p-4">
+                    <h3>📊 Red</h3>
+                    <p class="stats">Bloques: {{ bloques }}</p>
+                    <p class="stats">Dificultad: {{ dificultad }}</p>
+                    <p class="stats">Recompensa: {{ recompensa }} CHC</p>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="card p-4">
+                    <h3>🔗 Último Bloque</h3>
+                    <div class="overflow-auto" style="max-height: 200px;">
+                        <pre style="color: #00ff00;">{{ ultimo_bloque | tojson(indent=2) }}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-5 text-center">
+            <a href="/cadena" class="btn btn-outline-success mx-2">Ver Cadena Completa</a>
+            <button onclick="location.reload()" class="btn btn-custom mx-2">Actualizar Datos</button>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+# ==========================================
 # 🧠 FUNCIONES BASE
 # ==========================================
 def calcular_hash(bloque):
@@ -25,15 +76,16 @@ def calcular_hash(bloque):
     return hashlib.sha256(bloque_string).hexdigest()
 
 def crear_bloque_genesis():
-    bloque = {
-        "indice": 0,
-        "timestamp": time.time(),
-        "transacciones": [],
-        "nonce": 0,
-        "hash_anterior": "0"
-    }
-    bloque["hash"] = calcular_hash(bloque)
-    blockchain.append(bloque)
+    if not blockchain:
+        bloque = {
+            "indice": 0,
+            "timestamp": time.time(),
+            "transacciones": [],
+            "nonce": 0,
+            "hash_anterior": "0"
+        }
+        bloque["hash"] = calcular_hash(bloque)
+        blockchain.append(bloque)
 
 def calcular_recompensa():
     bloques = len(blockchain)
@@ -42,8 +94,18 @@ def calcular_recompensa():
     return max(recompensa, 0.00000001)
 
 # ==========================================
-# ⛏️ MINAR BLOQUE
+# 🌐 RUTAS DE NAVEGACIÓN
 # ==========================================
+@app.route("/")
+def home():
+    return render_template_string(
+        HTML_INDEX, 
+        bloques=len(blockchain), 
+        dificultad=DIFICULTAD,
+        recompensa=calcular_recompensa(),
+        ultimo_bloque=blockchain[-1] if blockchain else {}
+    )
+
 @app.route("/minar", methods=["POST"])
 def minar():
     data = request.json
@@ -83,16 +145,10 @@ def minar():
         "bloque": nuevo_bloque
     })
 
-# ==========================================
-# 📊 VER CADENA
-# ==========================================
 @app.route("/cadena", methods=["GET"])
 def ver_cadena():
     return jsonify(blockchain)
 
-# ==========================================
-# 💰 BALANCE
-# ==========================================
 @app.route("/balance/<wallet>", methods=["GET"])
 def balance(wallet):
     total = 0
@@ -102,12 +158,8 @@ def balance(wallet):
                 total += tx["monto"]
             if tx["emisor"] == wallet:
                 total -= tx["monto"]
-
     return jsonify({"wallet": wallet, "balance": total})
 
-# ==========================================
-# 🚀 INICIO
-# ==========================================
 if __name__ == "__main__":
     crear_bloque_genesis()
     app.run(host="0.0.0.0", port=10000)
