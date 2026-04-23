@@ -11,7 +11,7 @@ CORS(app)
 # ==========================================
 # ⚙️ CONFIGURACIÓN DE MONGODB
 # ==========================================
-MONGO_URI = "mongodb+srv://charly:caseta82*@cluster0.daebfm2.mongodb.net/?appName=Cluster0"
+MONGO_URI = "mongodb+srv://charly:caseta82%2A@cluster0.daebfm2.mongodb.net/?appName=Cluster0"
 client = MongoClient(MONGO_URI)
 db = client['charlycoin_db']
 collection = db['blockchain']
