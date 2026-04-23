@@ -50,7 +50,7 @@ client = MongoClient(
 db = client["charlycoin_db"]
 collection = db["blockchain"]
 
-collection.create_index("indice", unique=True)
+collection.create_index("indice")
 
 # ==========================================
 # HTML SIMPLE
