@@ -52,6 +52,11 @@ db = client["charlycoin_db"]
 collection = db["blockchain"]
 
 # Índices seguros
+try:
+    collection.drop_index("indice_1")
+except:
+    pass
+
 collection.create_index([("indice", ASCENDING)], unique=True)
 collection.create_index("hash")
 
