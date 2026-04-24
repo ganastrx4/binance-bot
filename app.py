@@ -27,7 +27,7 @@ PORT = int(os.environ.get("PORT", 10000))
 import os
 
 MONGO_URI = os.getenv("MONGO_URI")
-)
+
 
 DIFICULTAD = 5
 RECOMPENSA_INICIAL = 18.0
