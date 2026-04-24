@@ -42,7 +42,7 @@ ULTIMO_MINADO = {}
 client = MongoClient(MONGO_URI)
 db = client["charlycoin_db"]
 collection = db["blockchain"]
-)
+
 
 db = client["charlycoin_db"]
 collection = db["blockchain"]
