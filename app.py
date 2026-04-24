@@ -10,8 +10,8 @@ import time
 import hashlib
 from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
-from pymongo import MongoClient
-
+from pymongo import MongoClient, DESCENDING, ASCENDING
+from pymongo.errors import DuplicateKeyError
 
 # ==========================================
 # APP
@@ -38,11 +38,20 @@ ULTIMO_MINADO = {}
 # ==========================================
 # MONGO PRO
 # ==========================================
-client = MongoClient(MONGO_URI)
+client = MongoClient(
+    MONGO_URI,
+    serverSelectionTimeoutMS=30000,
+    connectTimeoutMS=30000,
+    socketTimeoutMS=30000,
+    retryWrites=True
+)
+
 db = client["charlycoin_db"]
 collection = db["blockchain"]
 
-collection.create_index("indice")
+# Índices seguros
+collection.create_index([("indice", ASCENDING)], unique=True)
+collection.create_index("hash")
 
 # ==========================================
 # HTML SIMPLE
@@ -66,6 +75,7 @@ body{background:#07111c;color:#fff;font-family:Arial;padding:40px}
 <p>/cadena</p>
 <p>/minar</p>
 <p>/stats</p>
+<p>/health</p>
 </div>
 </body>
 </html>
@@ -96,7 +106,11 @@ def crear_genesis():
         }
 
         bloque["hash"] = calcular_hash(bloque)
-        collection.insert_one(bloque)
+
+        try:
+            collection.insert_one(bloque)
+        except DuplicateKeyError:
+            pass
 
 # ==========================================
 # RECOMPENSA
@@ -127,8 +141,9 @@ def health():
 @app.route("/stats")
 def stats():
     total = collection.count_documents({})
+
     return jsonify({
-        "bloques": total - 1,
+        "bloques": max(total - 1, 0),
         "recompensa": recompensa_actual(),
         "dificultad": DIFICULTAD
     })
@@ -165,7 +180,7 @@ def balance(wallet):
     for bloque in bloques:
         for tx in bloque["transacciones"]:
             if tx["receptor"] == wallet:
-                total += tx["monto"]
+                total += float(tx["monto"])
 
     return jsonify({
         "wallet": wallet,
@@ -201,6 +216,10 @@ def minar():
 
     ultimo = collection.find_one(sort=[("indice", -1)])
 
+    if not ultimo:
+        crear_genesis()
+        ultimo = collection.find_one(sort=[("indice", -1)])
+
     nuevo = {
         "indice": ultimo["indice"] + 1,
         "timestamp": time.time(),
@@ -220,7 +239,7 @@ def minar():
     try:
         collection.insert_one(nuevo)
 
-    except:
+    except DuplicateKeyError:
         return jsonify({"error": "bloque duplicado"}), 400
 
     ULTIMO_MINADO[wallet] = ahora
@@ -235,6 +254,7 @@ def minar():
 # ==========================================
 # START
 # ==========================================
+crear_genesis()
+
 if __name__ == "__main__":
-    crear_genesis()
     app.run(host="0.0.0.0", port=PORT)
