@@ -34,11 +34,10 @@ DIFICULTAD = 5
 RECOMPENSA_INICIAL = 18.0
 HALVING_CADA = 21000
 
-# Anti spam minado
 ULTIMO_MINADO = {}
 
 # ==========================================
-# MONGO PRO
+# MONGO
 # ==========================================
 client = MongoClient(
     MONGO_URI,
@@ -52,26 +51,19 @@ db = client["charlycoin_db"]
 collection = db["blockchain"]
 
 # ==========================================
-# INDICES SEGUROS
+# INDICES SEGUROS (ANTI ERROR DUPLICADOS)
 # ==========================================
-try:
-    indexes = collection.index_information()
-
-    if "indice_1" in indexes:
-        viejo = indexes["indice_1"]
-
-        # Si existe sin unique lo reemplaza
-        if not viejo.get("unique", False):
-            collection.drop_index("indice_1")
-
-except:
-    pass
-
-collection.create_index([("indice", ASCENDING)], unique=True)
 collection.create_index("hash")
 
+try:
+    collection.create_index([("indice", ASCENDING)], unique=True)
+    print("✅ índice unique activo")
+except:
+    print("⚠️ índices duplicados detectados, usando índice normal")
+    collection.create_index([("indice", ASCENDING)])
+
 # ==========================================
-# HTML SIMPLE
+# HTML
 # ==========================================
 HTML = """
 <!DOCTYPE html>
@@ -115,7 +107,6 @@ def calcular_hash(bloque):
 # ==========================================
 def crear_genesis():
     if collection.count_documents({}) == 0:
-
         bloque = {
             "indice": 0,
             "timestamp": time.time(),
@@ -128,7 +119,7 @@ def crear_genesis():
 
         try:
             collection.insert_one(bloque)
-        except DuplicateKeyError:
+        except:
             pass
 
 # ==========================================
@@ -152,16 +143,13 @@ def home():
 # ==========================================
 @app.route("/health")
 def health():
-    return jsonify({
-        "status": "online"
-    })
+    return jsonify({"status": "online"})
 
 # ==========================================
 # STATS
 # ==========================================
 @app.route("/stats")
 def stats():
-
     total = collection.count_documents({})
 
     return jsonify({
@@ -230,7 +218,7 @@ def minar():
         if ahora - ULTIMO_MINADO[wallet] < 2:
             return jsonify({"error": "espera 2 segundos"}), 429
 
-    # Validar POW
+    # POW
     prueba = hashlib.sha256(f"{wallet}{nonce}".encode()).hexdigest()
 
     if not prueba.startswith("0" * DIFICULTAD):
@@ -260,9 +248,10 @@ def minar():
 
     try:
         collection.insert_one(nuevo)
-
     except DuplicateKeyError:
         return jsonify({"error": "bloque duplicado"}), 400
+    except:
+        return jsonify({"error": "error insertando bloque"}), 500
 
     ULTIMO_MINADO[wallet] = ahora
 
