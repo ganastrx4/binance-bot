@@ -10,7 +10,8 @@ import time
 import hashlib
 from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
-from pymongo import MongoClient, DESCENDING
+from pymongo import MongoClient
+
 
 # ==========================================
 # APP
@@ -23,9 +24,9 @@ CORS(app)
 # ==========================================
 PORT = int(os.environ.get("PORT", 10000))
 
-MONGO_URI = os.environ.get(
-    "MONGO_URI",
-    mongodb+srv://charly:caseta82%2A@cluster0.daebfm2.mongodb.net/charlycoin_db?retryWrites=true&w=majority&tls=true&connectTimeoutMS=30000&socketTimeoutMS=30000&serverSelectionTimeoutMS=30000
+import os
+
+MONGO_URI = os.getenv("MONGO_URI")
 )
 
 DIFICULTAD = 5
@@ -38,13 +39,9 @@ ULTIMO_MINADO = {}
 # ==========================================
 # MONGO PRO
 # ==========================================
-client = MongoClient(
-    MONGO_URI,
-    maxPoolSize=5,
-    minPoolSize=1,
-    serverSelectionTimeoutMS=30000,
-    connectTimeoutMS=30000,
-    socketTimeoutMS=30000
+client = MongoClient(MONGO_URI)
+db = client["charlycoin_db"]
+collection = db["blockchain"]
 )
 
 db = client["charlycoin_db"]
