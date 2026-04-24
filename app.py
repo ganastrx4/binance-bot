@@ -27,7 +27,7 @@ PORT = int(os.environ.get("PORT", 10000))
 MONGO_URI = os.environ.get("MONGO_URI", "").strip()
 
 if MONGO_URI == "":
-    print("⚠️ MONGO_URI no encontrada")
+    print("⚠️ MONGO_URI no encontrada, usando respaldo")
     MONGO_URI = "mongodb+srv://charly:caseta82%2A@cluster0.daebfm2.mongodb.net/charlycoin_db?retryWrites=true&w=majority&tls=true"
 
 DIFICULTAD = 5
@@ -51,9 +51,19 @@ client = MongoClient(
 db = client["charlycoin_db"]
 collection = db["blockchain"]
 
-# Índices seguros
+# ==========================================
+# INDICES SEGUROS
+# ==========================================
 try:
-    collection.drop_index("indice_1")
+    indexes = collection.index_information()
+
+    if "indice_1" in indexes:
+        viejo = indexes["indice_1"]
+
+        # Si existe sin unique lo reemplaza
+        if not viejo.get("unique", False):
+            collection.drop_index("indice_1")
+
 except:
     pass
 
@@ -73,16 +83,17 @@ HTML = """
 body{background:#07111c;color:#fff;font-family:Arial;padding:40px}
 .box{background:#111827;padding:20px;border-radius:14px}
 .green{color:#00ff88}
+a{color:#00ffff;text-decoration:none}
 </style>
 </head>
 <body>
 <div class="box">
 <h1>🚀 CHARLYCOIN NODE</h1>
 <p class="green">ONLINE</p>
-<p>/cadena</p>
-<p>/minar</p>
-<p>/stats</p>
-<p>/health</p>
+<p><a href="/cadena">/cadena</a></p>
+<p><a href="/minar">/minar</a></p>
+<p><a href="/stats">/stats</a></p>
+<p><a href="/health">/health</a></p>
 </div>
 </body>
 </html>
@@ -104,6 +115,7 @@ def calcular_hash(bloque):
 # ==========================================
 def crear_genesis():
     if collection.count_documents({}) == 0:
+
         bloque = {
             "indice": 0,
             "timestamp": time.time(),
@@ -136,17 +148,20 @@ def home():
     return render_template_string(HTML)
 
 # ==========================================
-# STATUS
+# HEALTH
 # ==========================================
 @app.route("/health")
 def health():
-    return jsonify({"status": "online"})
+    return jsonify({
+        "status": "online"
+    })
 
 # ==========================================
 # STATS
 # ==========================================
 @app.route("/stats")
 def stats():
+
     total = collection.count_documents({})
 
     return jsonify({
@@ -156,7 +171,7 @@ def stats():
     })
 
 # ==========================================
-# CADENA FAST
+# CADENA
 # ==========================================
 @app.route("/cadena")
 def cadena():
@@ -177,7 +192,7 @@ def cadena():
 @app.route("/balance/<wallet>")
 def balance(wallet):
 
-    total = 0
+    total = 0.0
 
     bloques = collection.find(
         {"transacciones.receptor": wallet},
@@ -205,12 +220,12 @@ def minar():
     wallet = str(data.get("wallet", "")).strip()
     nonce = str(data.get("nonce", "")).strip()
 
-    if not wallet:
+    if wallet == "":
         return jsonify({"error": "wallet requerida"}), 400
 
-    # Anti spam (1 bloque cada 2 seg)
     ahora = time.time()
 
+    # Anti spam
     if wallet in ULTIMO_MINADO:
         if ahora - ULTIMO_MINADO[wallet] < 2:
             return jsonify({"error": "espera 2 segundos"}), 429
