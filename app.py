@@ -24,10 +24,9 @@ CORS(app)
 # ==========================================
 PORT = int(os.environ.get("PORT", 10000))
 
-import os
-
 MONGO_URI = os.getenv("MONGO_URI")
-
+if not MONGO_URI:
+    raise Exception("Falta variable MONGO_URI en Render")
 
 DIFICULTAD = 5
 RECOMPENSA_INICIAL = 18.0
@@ -40,10 +39,6 @@ ULTIMO_MINADO = {}
 # MONGO PRO
 # ==========================================
 client = MongoClient(MONGO_URI)
-db = client["charlycoin_db"]
-collection = db["blockchain"]
-
-
 db = client["charlycoin_db"]
 collection = db["blockchain"]
 
