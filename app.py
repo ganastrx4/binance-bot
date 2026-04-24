@@ -286,10 +286,26 @@ def health():
 # ==========================================
 @app.route("/stats")
 def stats():
+
     total = collection.count_documents({})
+
+    # 🔥 CALCULAR SUPPLY REAL
+    pipeline = [
+        {"$unwind": "$transacciones"},
+        {"$match": {"transacciones.receptor": {"$ne": None}}},
+        {"$group": {
+            "_id": None,
+            "total_supply": {"$sum": "$transacciones.monto"}
+        }}
+    ]
+
+    result = list(collection.aggregate(pipeline))
+
+    supply = result[0]["total_supply"] if result else 0
 
     return jsonify({
         "bloques": max(total - 1, 0),
+        "supply": round(supply, 2),
         "recompensa": recompensa_actual(),
         "dificultad": DIFICULTAD
     })
