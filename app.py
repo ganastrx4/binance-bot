@@ -69,309 +69,158 @@ HTML = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CharlyScan - Panel En Vivo</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CharlyScan - Full Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 
-<script src="https://cdn.tailwindcss.com"></script>
-
-<style>
-body{
-    background:#070b14;
-    color:#f8fafc;
-    font-family:'Segoe UI',Tahoma,Verdana,sans-serif;
-}
-.card{
-    background:#111827;
-    border:1px solid #1f2937;
-    border-radius:16px;
-    box-shadow:0 10px 15px rgba(0,0,0,.45);
-}
-.neon-text{
-    color:#00f2ff;
-    text-shadow:0 0 14px rgba(0,242,255,.65);
-}
-.neon-border:focus{
-    border-color:#00f2ff;
-    box-shadow:0 0 12px rgba(0,242,255,.25);
-}
-.blink{
-    animation:blink 1.5s infinite;
-}
-@keyframes blink{
-    0%{opacity:1}
-    50%{opacity:.35}
-    100%{opacity:1}
-}
-::-webkit-scrollbar{
-    width:8px;
-}
-::-webkit-scrollbar-thumb{
-    background:#1f2937;
-    border-radius:10px;
-}
-</style>
+    <style>
+        body { background:#070b14; color:#f8fafc; font-family:Segoe UI; }
+        .card { background:#111827; border:1px solid #1f2937; border-radius:16px; }
+        .neon { color:#00f2ff; text-shadow:0 0 15px rgba(0,242,255,.6); }
+        .blink { animation:blink 1.5s infinite; }
+        @keyframes blink { 0%{opacity:1} 50%{opacity:.3} 100%{opacity:1} }
+    </style>
 </head>
 
-<body class="p-4 md:p-10">
+<body class="p-6">
 
-<div class="max-w-7xl mx-auto">
+<div class="max-w-6xl mx-auto">
 
-<!-- HEADER -->
-<header class="flex flex-col md:flex-row justify-between items-center gap-4 mb-10">
+    <!-- HEADER -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-5xl font-black neon">CHARLYSCAN</h1>
+            <p class="text-gray-400">Explorador Blockchain PRO</p>
+        </div>
 
-<div>
-<h1 class="text-5xl font-black neon-text tracking-tighter">CHARLYSCAN</h1>
-<p class="text-slate-500 text-sm font-mono">
-Explorador de bloques para NewWorld Network
-</p>
-</div>
+        <div class="card p-4">
+            <p class="text-sm text-gray-400">Estado Nodo</p>
+            <p class="text-green-400 font-bold blink">● EN VIVO</p>
+            <p id="total-blocks" class="text-xl mt-2">Bloques: 0</p>
+        </div>
+    </div>
 
-<div class="card p-4 flex items-center gap-4">
+    <!-- SEARCH -->
+    <div class="card p-6 mb-6">
+        <p class="text-sm text-gray-400 mb-2">Wallet Tracker</p>
 
-<div class="text-right">
-<p class="text-xs uppercase tracking-widest text-slate-400">
-Estado del Nodo
-</p>
+        <div class="flex gap-2">
+            <input id="wallet-input"
+                   class="w-full p-3 bg-black border border-gray-700 rounded text-cyan-300"
+                   placeholder="Pega tu wallet..." />
 
-<p class="text-green-400 font-bold flex items-center justify-end gap-2">
-<span class="blink">●</span> EN VIVO
-</p>
-</div>
+            <button onclick="updateDashboard()"
+                    class="bg-cyan-600 px-6 rounded font-bold">
+                BUSCAR
+            </button>
+        </div>
+    </div>
 
-<div class="h-10 w-px bg-slate-700"></div>
+    <!-- STATS -->
+    <div class="grid grid-cols-3 gap-4 mb-6">
 
-<div>
-<p id="total-blocks"
-class="text-2xl font-bold font-mono">
-Bloques: 0
-</p>
-</div>
+        <div class="card p-5">
+            <p class="text-gray-400">Saldo</p>
+            <p id="user-balance" class="text-3xl text-yellow-400 font-bold">0 CHC</p>
+        </div>
 
-</div>
+        <div class="card p-5">
+            <p class="text-gray-400">Supply</p>
+            <p id="total-supply" class="text-3xl font-bold">0 CHC</p>
+        </div>
 
-</header>
+        <div class="card p-5">
+            <p class="text-gray-400">Última Recompensa</p>
+            <p id="last-reward" class="text-3xl text-purple-400 font-bold">0 CHC</p>
+        </div>
 
-<!-- BUSCADOR -->
-<div class="card p-6 mb-8 border-l-4 border-l-cyan-500">
+    </div>
 
-<label class="block mb-3 text-sm font-semibold text-slate-300">
-Rastreador de Minería Personal
-</label>
+    <!-- TABLE -->
+    <div class="card overflow-hidden">
+        <div class="p-4 border-b border-gray-800">
+            <h2 class="font-bold">Blockchain Explorer</h2>
+        </div>
 
-<div class="flex gap-2">
+        <table class="w-full text-left">
+            <thead class="text-gray-400 text-sm">
+                <tr>
+                    <th class="p-3">Bloque</th>
+                    <th class="p-3">Wallet</th>
+                    <th class="p-3">Monto</th>
+                    <th class="p-3">Hash</th>
+                </tr>
+            </thead>
 
-<input
-id="wallet-input"
-type="text"
-placeholder="Pega aquí tu dirección pública (Wallet) y pulsa Enter..."
-class="w-full bg-black/50 border border-slate-700 p-4 rounded-xl focus:outline-none neon-border text-cyan-400 font-mono"
-/>
-
-<button
-onclick="updateDashboard()"
-class="bg-cyan-600 hover:bg-cyan-500 px-6 rounded-xl font-bold transition-all">
-BUSCAR
-</button>
-
-</div>
-
-</div>
-
-<!-- STATS -->
-<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-
-<div class="card p-8 border-l-4 border-l-yellow-500">
-<h3 class="text-xs uppercase tracking-widest text-slate-400 mb-4">
-Mi Saldo Acumulado
-</h3>
-<p id="user-balance"
-class="text-4xl font-black text-yellow-400 font-mono">
-0.00 CHC
-</p>
-</div>
-
-<div class="card p-8">
-<h3 class="text-xs uppercase tracking-widest text-slate-400 mb-4">
-Suministro en Circulación
-</h3>
-<p id="total-supply"
-class="text-4xl font-black font-mono">
-0 CHC
-</p>
-</div>
-
-<div class="card p-8">
-<h3 class="text-xs uppercase tracking-widest text-slate-400 mb-4">
-Última Recompensa
-</h3>
-<p id="reward"
-class="text-4xl font-black text-green-400 font-mono">
-0
-</p>
-</div>
-
-<div class="card p-8">
-<h3 class="text-xs uppercase tracking-widest text-slate-400 mb-4">
-Dificultad de Red
-</h3>
-<p id="difficulty"
-class="text-4xl font-black text-purple-500 font-mono">
-5 ZEROS
-</p>
-</div>
+            <tbody id="blockchain-table"></tbody>
+        </table>
+    </div>
 
 </div>
 
-<!-- TABLA -->
-<div class="card overflow-hidden">
-
-<div class="p-5 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
-
-<h2 class="font-bold text-lg">
-Historial Reciente de la Blockchain
-</h2>
-
-<span class="text-xs text-slate-500">
-NODO MAESTRO: RENDER CLOUD
-</span>
-
-</div>
-
-<div class="overflow-x-auto">
-
-<table class="w-full text-left">
-
-<thead class="bg-slate-900 text-slate-500 text-xs uppercase">
-<tr>
-<th class="p-5">Bloque</th>
-<th class="p-5">Wallet</th>
-<th class="p-5">Monto</th>
-<th class="p-5">Hash</th>
-</tr>
-</thead>
-
-<tbody id="blockchain-table" class="divide-y divide-slate-800">
-</tbody>
-
-</table>
-
-</div>
-</div>
-
-</div>
-
+<!-- ================= JS PRO ================= -->
 <script>
+const API_CHAIN = window.location.origin + '/cadena';
+const API_STATS = window.location.origin + '/stats';
 
-const API_CHAIN = "/cadena";
-const API_STATS = "/stats";
+async function updateDashboard() {
+    try {
+        const wallet = document.getElementById('wallet-input').value.trim();
 
-async function updateDashboard(){
+        const [chainRes, statsRes] = await Promise.all([
+            fetch(API_CHAIN),
+            fetch(API_STATS)
+        ]);
 
-try{
+        const chain = await chainRes.json();
+        const stats = await statsRes.json();
 
-const [chainRes, statsRes] = await Promise.all([
-fetch(API_CHAIN),
-fetch(API_STATS)
-]);
+        let tableHtml = "";
 
-const chain = await chainRes.json();
-const stats = await statsRes.json();
+        const recentBlocks = [...chain].reverse();
 
-const myWallet =
-document.getElementById("wallet-input").value.trim();
+        recentBlocks.forEach(block => {
+            const tx = block.transacciones?.[0];
+            if (!tx) return;
 
-let userBalance = 0;
-let html = "";
+            tableHtml += `
+            <tr class="border-t border-gray-800 hover:bg-gray-900">
+                <td class="p-3 text-cyan-400">#${block.indice}</td>
+                <td class="p-3 text-xs">${tx.receptor}</td>
+                <td class="p-3 text-yellow-400 font-bold">+${tx.monto}</td>
+                <td class="p-3 text-[10px] text-gray-500">${block.hash.substring(0,32)}...</td>
+            </tr>
+            `;
+        });
 
-const recent = [...chain].reverse();
+        document.getElementById("blockchain-table").innerHTML = tableHtml;
 
-/* =========================
-TABLA + BALANCE WALLET
-========================= */
-recent.forEach(block=>{
+        document.getElementById("total-blocks").innerText =
+            "Bloques: " + stats.bloques;
 
-if(!block.transacciones || !block.transacciones.length) return;
+        document.getElementById("total-supply").innerText =
+            Number(stats.recompensa).toLocaleString() + " CHC";
 
-const tx = block.transacciones[0];
-const monto = parseFloat(tx.monto || 0);
+        document.getElementById("last-reward").innerText =
+            stats.recompensa + " CHC";
 
-if(myWallet !== "" && tx.receptor === myWallet){
-userBalance += monto;
+        // 🔥 SALDO REAL
+        if(wallet !== ""){
+            const balRes = await fetch("/balance/" + wallet);
+            const bal = await balRes.json();
+
+            document.getElementById("user-balance").innerText =
+                Number(bal.balance).toLocaleString() + " CHC";
+        }
+
+    } catch(e){
+        console.log("Error dashboard:", e);
+    }
 }
 
-html += `
-<tr class="hover:bg-slate-800/40 transition-all">
-<td class="p-5 text-cyan-400 font-bold">#${block.indice}</td>
-
-<td class="p-5 text-xs text-slate-400 font-mono">
-${tx.receptor}
-</td>
-
-<td class="p-5 text-yellow-400 font-black">
-+${monto.toLocaleString()}
-</td>
-
-<td class="p-5 text-[10px] text-slate-600 font-mono">
-${block.hash.substring(0,32)}...
-</td>
-</tr>
-`;
-
-});
-
-/* =========================
-SUPPLY REAL
-bloques * recompensa aprox
-========================= */
-
-let supplyReal =
-stats.bloques * stats.recompensa;
-
-/* =========================
-PINTAR
-========================= */
-
-document.getElementById("blockchain-table").innerHTML =
-html || `<tr><td colspan="4" class="p-10 text-center text-slate-500">Sin bloques</td></tr>`;
-
-document.getElementById("user-balance").innerText =
-userBalance.toLocaleString(undefined,{
-minimumFractionDigits:2
-}) + " CHC";
-
-document.getElementById("total-supply").innerText =
-supplyReal.toLocaleString() + " CHC";
-
-document.getElementById("total-blocks").innerText =
-"Bloques: " + stats.bloques;
-
-document.getElementById("reward").innerText =
-stats.recompensa + " CHC";
-
-document.getElementById("difficulty").innerText =
-stats.dificultad + " ZEROS";
-
-}catch(e){
-
-document.getElementById("total-blocks").innerText =
-"Nodo Offline";
-
-}
-
-}
-
-/* ENTER */
-document.getElementById("wallet-input")
-.addEventListener("keypress",function(e){
-if(e.key==="Enter"){
+setInterval(updateDashboard, 10000);
 updateDashboard();
-}
-});
-
-setInterval(updateDashboard,10000);
-updateDashboard();
-
 </script>
 
 </body>
