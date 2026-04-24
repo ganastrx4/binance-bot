@@ -24,9 +24,11 @@ CORS(app)
 # ==========================================
 PORT = int(os.environ.get("PORT", 10000))
 
-MONGO_URI = os.getenv("MONGO_URI")
-if not MONGO_URI:
-    raise Exception("Falta variable MONGO_URI en Render")
+MONGO_URI = os.environ.get("MONGO_URI", "").strip()
+
+if MONGO_URI == "":
+    print("⚠️ MONGO_URI no encontrada")
+    MONGO_URI = "mongodb+srv://charly:caseta82%2A@cluster0.daebfm2.mongodb.net/charlycoin_db?retryWrites=true&w=majority&tls=true"
 
 DIFICULTAD = 5
 RECOMPENSA_INICIAL = 18.0
