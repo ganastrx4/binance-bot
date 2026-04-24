@@ -278,22 +278,23 @@ fetch(API_STATS)
 const chain = await chainRes.json();
 const stats = await statsRes.json();
 
-const myWallet = document.getElementById("wallet-input").value.trim();
+const myWallet =
+document.getElementById("wallet-input").value.trim();
 
 let userBalance = 0;
-let totalSupply = 0;
 let html = "";
 
 const recent = [...chain].reverse();
 
+/* =========================
+TABLA + BALANCE WALLET
+========================= */
 recent.forEach(block=>{
 
 if(!block.transacciones || !block.transacciones.length) return;
 
 const tx = block.transacciones[0];
 const monto = parseFloat(tx.monto || 0);
-
-totalSupply += monto;
 
 if(myWallet !== "" && tx.receptor === myWallet){
 userBalance += monto;
@@ -319,14 +320,28 @@ ${block.hash.substring(0,32)}...
 
 });
 
+/* =========================
+SUPPLY REAL
+bloques * recompensa aprox
+========================= */
+
+let supplyReal =
+stats.bloques * stats.recompensa;
+
+/* =========================
+PINTAR
+========================= */
+
 document.getElementById("blockchain-table").innerHTML =
 html || `<tr><td colspan="4" class="p-10 text-center text-slate-500">Sin bloques</td></tr>`;
 
 document.getElementById("user-balance").innerText =
-userBalance.toLocaleString(undefined,{minimumFractionDigits:2}) + " CHC";
+userBalance.toLocaleString(undefined,{
+minimumFractionDigits:2
+}) + " CHC";
 
 document.getElementById("total-supply").innerText =
-totalSupply.toLocaleString() + " CHC";
+supplyReal.toLocaleString() + " CHC";
 
 document.getElementById("total-blocks").innerText =
 "Bloques: " + stats.bloques;
@@ -339,14 +354,19 @@ stats.dificultad + " ZEROS";
 
 }catch(e){
 
-document.getElementById("total-blocks").innerText = "Nodo Offline";
+document.getElementById("total-blocks").innerText =
+"Nodo Offline";
 
 }
 
 }
 
-document.getElementById("wallet-input").addEventListener("keypress",function(e){
-if(e.key==="Enter") updateDashboard();
+/* ENTER */
+document.getElementById("wallet-input")
+.addEventListener("keypress",function(e){
+if(e.key==="Enter"){
+updateDashboard();
+}
 });
 
 setInterval(updateDashboard,10000);
