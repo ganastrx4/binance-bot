@@ -739,31 +739,24 @@ let html = ""
 
 let tableHtml = "";
 
-chain.forEach(block => {
+chain.forEach(x => {
 
-    if (!block.transacciones) return;
-    if (block.transacciones.length === 0) return;
+    if (!x.transacciones) return;
+    if (x.transacciones.length == 0) return;
 
-    let tx = block.transacciones[0];
+    let tx = x.transacciones[0];
 
     tableHtml += `
     <tr>
-        <td class='cyan'>#${block.indice}</td>
-
-        <td class='addr'>
-            ${String(tx.receptor).substring(0,26)}...
-        </td>
-
-        <td class='yellow'>
-            +${Number(tx.monto).toLocaleString()}
-        </td>
-
-        <td class='hash'>
-            ${String(block.hash).substring(0,28)}...
-        </td>
+        <td>#${x.indice}</td>
+        <td>${String(tx.receptor).substring(0,26)}...</td>
+        <td>+${Number(tx.monto).toLocaleString()}</td>
+        <td>${String(x.hash).substring(0,28)}...</td>
     </tr>
     `;
 });
+
+document.getElementById("blockchain-table").innerHTML = tableHtml;
 
 document.getElementById("blockchain-table").innerHTML = tableHtml;
 document.getElementById("tabla").innerHTML = html
