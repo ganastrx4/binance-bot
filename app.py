@@ -426,12 +426,18 @@ def stats():
     result = list(collection.aggregate(pipeline))
     supply = result[0]["total"] if result else 0
 
-    reward = recompensa_actual()
+    bloques = max(total - 1, 0)
+
+    halvings = bloques // HALVING_CADA
+    reward = RECOMPENSA_INICIAL / (2 ** halvings)
+
+    if reward < 0.00000001:
+        reward = 0.00000001
 
     return jsonify({
-        "bloques": max(total - 1, 0),
+        "bloques": bloques,
         "supply": round(float(supply), 2),
-        "recompensa": float(reward),
+        "recompensa": reward,
         "dificultad": DIFICULTAD
     })
 
