@@ -791,6 +791,46 @@ Number(j.balance).toLocaleString(undefined,{minimumFractionDigits:2}) + " CHC"
 setInterval(cargar,10000)
 cargar()
 
+async function updateDashboard(){
+
+    const stats = await fetch("/stats").then(r=>r.json());
+    const chain = await fetch("/cadena").then(r=>r.json());
+
+    document.getElementById("blocks").innerText =
+    Number(stats.bloques).toLocaleString("es-MX");
+
+    document.getElementById("supply").innerText =
+    Number(stats.supply).toLocaleString("es-MX") + " CHC";
+
+    document.getElementById("last-reward").innerText =
+    Number(stats.recompensa).toLocaleString("es-MX",{
+        minimumFractionDigits:2,
+        maximumFractionDigits:8
+    }) + " CHC";
+
+    let html = "";
+
+    chain.forEach(x=>{
+
+        let tx = x.transacciones?.[0];
+        if(!tx) return;
+
+        html += `
+        <tr>
+            <td>#${x.indice}</td>
+            <td>${String(tx.receptor).substring(0,20)}...</td>
+            <td>+${Number(tx.monto).toLocaleString("es-MX")}</td>
+            <td>${String(x.hash).substring(0,24)}...</td>
+        </tr>
+        `;
+    });
+
+    document.getElementById("blockchain-table").innerHTML = html;
+}
+
+updateDashboard();
+setInterval(updateDashboard,10000);
+
 </script>
 
 </body>
