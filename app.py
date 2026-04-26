@@ -978,78 +978,67 @@ def trade():
     BTC | XRP | WLD | ETH
     """
 # ==========================================================
-# SWAP REAL CHC -> CHOROX
-# Flask + Mongo + Web3 + Wallet auto + Bloqueo CHC
-# Requiere:
-# pip install web3 pymongo mnemonic eth-account
+# 🔥 SWAP PRO DEFINITIVO CHC -> CHOROX
+# Usa balance REAL del miner
+# Quema CHC
+# Envía CHOROX real BSC
+# Cobra 1%
+# Historial Mongo
 # ==========================================================
 
+from flask import request, session, redirect
+from web3 import Web3
 import os
 import time
-import secrets
-from flask import request, session
-
-from web3 import Web3
-from eth_account import Account
-from mnemonic import Mnemonic
 
 # ==========================================================
 # CONFIG
 # ==========================================================
-BSC_RPC = os.getenv("BSC_RPC")  # https://bsc-dataseed.binance.org/
-ADMIN_PK = os.getenv("ADMIN_PK")  # wallet que tiene CHOROX
-ADMIN_ADDR = Web3.to_checksum_address(os.getenv("ADMIN_ADDR"))
-
-CHOROX_CONTRACT = Web3.to_checksum_address(
-    "0x15681A8E9a8dF14946A4F852822B709e37b70c4E"
-)
-
-CHOROX_DECIMALS = 18
-
-# tasa ejemplo:
-# 100 CHC = 1 CHOROX
-RATE = 100.0
-
-FEE = 0.01
-
+BSC_RPC = "https://bsc-dataseed.binance.org/"
 w3 = Web3(Web3.HTTPProvider(BSC_RPC))
 
+ADMIN_ADDR = Web3.to_checksum_address(os.getenv("ADMIN_ADDR"))
+PRIVATE_KEY = os.getenv("PRIVATE_KEY")
+
+CHOROX = Web3.to_checksum_address("0x15681A8E9a8dF14946A4F852822B709e37b70c4E")
+
+# 100 CHC = 1 CHOROX
+RATE = 100
+
 # ==========================================================
-# ABI MINIMO ERC20
+# ABI MINIMA ERC20
 # ==========================================================
 ERC20_ABI = [
 {
- "constant": False,
- "inputs": [
-   {"name":"_to","type":"address"},
-   {"name":"_value","type":"uint256"}
- ],
- "name":"transfer",
- "outputs":[{"name":"","type":"bool"}],
- "type":"function"
+"constant":False,
+"inputs":[
+{"name":"_to","type":"address"},
+{"name":"_value","type":"uint256"}
+],
+"name":"transfer",
+"outputs":[{"name":"","type":"bool"}],
+"type":"function"
+},
+{
+"constant":True,
+"inputs":[{"name":"_owner","type":"address"}],
+"name":"balanceOf",
+"outputs":[{"name":"balance","type":"uint256"}],
+"type":"function"
+},
+{
+"constant":True,
+"inputs":[],
+"name":"decimals",
+"outputs":[{"name":"","type":"uint8"}],
+"type":"function"
 }
 ]
 
-token = w3.eth.contract(address=CHOROX_CONTRACT, abi=ERC20_ABI)
+token = w3.eth.contract(address=CHOROX, abi=ERC20_ABI)
 
 # ==========================================================
-# CREATE WALLET
-# ==========================================================
-def create_wallet():
-    mnemo = Mnemonic("english")
-    seed = mnemo.generate(strength=128)
-
-    acct = Account.create(seed)
-
-    return {
-        "address": acct.address,
-        "private": acct.key.hex(),
-        "seed": seed
-    }
-
-# ==========================================================
-# BALANCE CHC DISPONIBLE
-# mined - swapped
+# BALANCE REAL CHC
 # ==========================================================
 def chc_available(uid):
 
@@ -1060,143 +1049,52 @@ def chc_available(uid):
 
     addr = row["address"]
 
-    real = balance_calc(addr)   # TU FUNCION REAL DEL MINER
+    pipeline = [
+        {"$unwind":"$transacciones"},
+        {"$match":{"transacciones.receptor":addr}},
+        {"$group":{"_id":None,"total":{"$sum":"$transacciones.monto"}}}
+    ]
 
-    swapped = float(row.get("chc_swapped", 0))
+    res = list(collection.aggregate(pipeline))
 
-    return max(real - swapped, 0)
+    mined = float(res[0]["total"]) if res else 0.0
 
-# ==========================================================
-# SEND CHOROX
-# ==========================================================
-def send_chorox(to_addr, amount):
+    swapped = float(row.get("chc_swapped",0))
 
-    to_addr = Web3.to_checksum_address(to_addr)
-
-    nonce = w3.eth.get_transaction_count(ADMIN_ADDR)
-
-    qty = int(amount * (10 ** CHOROX_DECIMALS))
-
-    tx = token.functions.transfer(
-        to_addr,
-        qty
-    ).build_transaction({
-        "from": ADMIN_ADDR,
-        "gas": 120000,
-        "gasPrice": w3.to_wei("3", "gwei"),
-        "nonce": nonce
-    })
-
-    signed = w3.eth.account.sign_transaction(tx, ADMIN_PK)
-
-    tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
-
-    return tx_hash.hex()
+    return max(mined - swapped, 0)
 
 # ==========================================================
-# SWAP PAGE
+# HOME BOTON
 # ==========================================================
-@app.route("/swap", methods=["GET", "POST"])
+# agrega en home:
+# <a class='btn swap' href='/swap'>🔄 Swap CHC ↔ CHOROX</a>
+
+# ==========================================================
+# PANEL SWAP
+# ==========================================================
+@app.route("/swap")
 def swap():
 
-    # --------------------------------
-    # crear uid si no existe
-    # --------------------------------
     if "uid" not in session:
-
-        uid = secrets.token_hex(8)
-
-        data = create_wallet()
-
-        wallets.insert_one({
-            "uid": uid,
-            "address": data["address"],
-            "private": data["private"],
-            "seed": data["seed"],
-            "chc_total": 0,
-            "chc_swapped": 0
-        })
-
-        session["uid"] = uid
+        return redirect("/wallet")
 
     uid = session["uid"]
-
     row = wallets.find_one({"uid": uid})
 
-    available = chc_available(uid)
+    bal = chc_available(uid)
 
-    msg = ""
+    addr = row["address"]
 
-    # ======================================================
-    # POST
-    # ======================================================
-    if request.method == "POST":
-
-        try:
-            amount = float(request.form["amount"])
-            use_auto = request.form.get("auto", "")
-            custom = request.form.get("wallet", "").strip()
-
-            if amount <= 0:
-                raise Exception("Cantidad inválida")
-
-            if amount > available:
-                raise Exception("No tienes suficientes CHC")
-
-            # wallet destino
-            if use_auto == "yes":
-                destino = row["address"]
-            else:
-                destino = custom
-
-            destino = Web3.to_checksum_address(destino)
-
-            # calcular salida
-            chorox = amount / RATE
-            chorox_user = chorox * (1 - FEE)
-
-            # enviar token
-            txid = send_chorox(destino, chorox_user)
-
-            # bloquear CHC
-            wallets.update_one(
-                {"uid": uid},
-                {
-                    "$inc": {
-                        "chc_swapped": amount
-                    }
-                }
-            )
-
-            swaps.insert_one({
-                "uid": uid,
-                "time": time.time(),
-                "chc": amount,
-                "chorox": chorox_user,
-                "wallet": destino,
-                "txid": txid
-            })
-
-            msg = f"✅ Swap completado<br>{amount} CHC → {chorox_user:.6f} CHOROX"
-
-        except Exception as e:
-            msg = "❌ " + str(e)
-
-        available = chc_available(uid)
-
-    # ======================================================
-    # HTML
-    # ======================================================
     html = f"""
     <html>
     <head>
     <meta name='viewport' content='width=device-width,initial-scale=1'>
     <style>
-    body{{background:#050816;color:white;font-family:Arial;padding:20px}}
-    .card{{background:#111827;padding:22px;border-radius:20px;max-width:520px;margin:auto}}
-    input{{width:100%;padding:14px;border-radius:14px;border:0;margin:8px 0}}
-    button{{width:100%;padding:16px;background:#06b6d4;color:white;border:0;border-radius:14px;font-weight:bold}}
-    .small{{font-size:12px;color:#94a3b8}}
+    body{{background:#070b14;color:white;font-family:Arial;padding:20px}}
+    .card{{background:#111827;padding:20px;border-radius:20px;max-width:600px;margin:auto}}
+    input{{width:100%;padding:14px;border-radius:12px;border:0;margin-top:10px;background:#0b1020;color:white}}
+    button{{width:100%;padding:16px;background:#10b981;border:0;color:white;font-weight:bold;border-radius:14px;margin-top:14px}}
+    small{{color:#aaa}}
     </style>
     </head>
     <body>
@@ -1204,40 +1102,156 @@ def swap():
     <div class='card'>
     <h2>🔄 Swap CHC → CHOROX</h2>
 
-    <p>CHC disponibles: <b>{available:.2f}</b></p>
-    <p class='small'>100 CHC = 1 CHOROX</p>
-    <p class='small'>Comisión 1%</p>
+    <p>CHC disponibles: <b>{round(bal,2)}</b></p>
+    <p>100 CHC = 1 CHOROX</p>
+    <p>Comisión 1%</p>
 
-    <form method='post'>
+    <form method='post' action='/swap_now'>
 
-    <input name='amount' placeholder='Cantidad CHC' required>
+    <input name='amount' placeholder='Cantidad CHC'>
 
-    <input name='wallet' placeholder='Wallet BSC destino (opcional)'>
+    <input name='to' placeholder='Wallet BSC destino (opcional)'>
 
-    <label>
-    <input type='checkbox' name='auto' value='yes'>
-    Usar wallet generada por la app:
-    <br>
-    <span class='small'>{row["address"]}</span>
-    </label>
+    <small>Usar wallet generada por la app:<br>{addr}</small>
 
-    <br><br>
-
-    <button>CAMBIAR AHORA</button>
+    <button>Cambiar Ahora</button>
 
     </form>
 
-    <br>
-    {msg}
-
-    <br><br>
-    <a href='/wallet' style='color:#22d3ee'>← Volver Wallet</a>
-
     </div>
-
     </body>
     </html>
     """
+
+    return html
+
+# ==========================================================
+# EJECUTAR SWAP
+# ==========================================================
+@app.route("/swap_now", methods=["POST"])
+def swap_now():
+
+    if "uid" not in session:
+        return redirect("/wallet")
+
+    uid = session["uid"]
+
+    row = wallets.find_one({"uid": uid})
+
+    amount = float(request.form.get("amount",0))
+
+    to = request.form.get("to","").strip()
+
+    if to == "":
+        to = row["address"]
+
+    try:
+        to = Web3.to_checksum_address(to)
+    except:
+        return "❌ Wallet destino inválida"
+
+    available = chc_available(uid)
+
+    if amount <= 0:
+        return "❌ Cantidad inválida"
+
+    if amount > available:
+        return "❌ No tienes suficientes CHC"
+
+    # ======================================================
+    # CALCULO
+    # ======================================================
+    gross = amount / RATE
+    fee = gross * 0.01
+    send_tokens = gross - fee
+
+    decimals = token.functions.decimals().call()
+
+    qty = int(send_tokens * (10 ** decimals))
+
+    # ======================================================
+    # ENVIO CHOROX
+    # ======================================================
+    nonce = w3.eth.get_transaction_count(ADMIN_ADDR)
+
+    tx = token.functions.transfer(
+        to,
+        qty
+    ).build_transaction({
+        "from": ADMIN_ADDR,
+        "nonce": nonce,
+        "gas": 120000,
+        "gasPrice": w3.to_wei("3","gwei")
+    })
+
+    signed = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
+
+    tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+
+    # ======================================================
+    # QUEMAR / BLOQUEAR CHC
+    # ======================================================
+    wallets.update_one(
+        {"uid": uid},
+        {
+            "$inc":{
+                "chc_swapped": amount
+            }
+        }
+    )
+
+    # ======================================================
+    # HISTORIAL
+    # ======================================================
+    swaps.insert_one({
+        "uid": uid,
+        "from": row["address"],
+        "to": to,
+        "chc": amount,
+        "chorox": send_tokens,
+        "fee": fee,
+        "tx": tx_hash.hex(),
+        "time": time.time()
+    })
+
+    return f"""
+    <html>
+    <body style='background:#070b14;color:white;font-family:Arial;padding:40px;text-align:center'>
+    <h2>✅ Swap realizado</h2>
+    <p>{amount} CHC cambiados</p>
+    <p>Recibiste {round(send_tokens,6)} CHOROX</p>
+    <p>TX:</p>
+    <small>{tx_hash.hex()}</small><br><br>
+    <a href='/swap' style='color:#00ff99'>Volver</a>
+    </body>
+    </html>
+    """
+
+# ==========================================================
+# HISTORIAL
+# ==========================================================
+@app.route("/swap_history")
+def swap_history():
+
+    if "uid" not in session:
+        return redirect("/wallet")
+
+    uid = session["uid"]
+
+    rows = swaps.find({"uid":uid}).sort("time",-1).limit(30)
+
+    html = "<html><body style='background:#070b14;color:white;font-family:Arial;padding:20px'>"
+    html += "<h2>Historial Swap</h2>"
+
+    for x in rows:
+        html += f"""
+        <div style='background:#111827;padding:14px;border-radius:14px;margin-bottom:12px'>
+        {x["chc"]} CHC → {round(x["chorox"],6)} CHOROX<br>
+        <small>{x["tx"]}</small>
+        </div>
+        """
+
+    html += "</body></html>"
 
     return html
 
