@@ -303,8 +303,8 @@ def home():
     <body>
 
     <div class='hero'>
-        <div class='badge'>WEB3 • BNB CHAIN • CHOROX</div>
-        <h1>💎 CHOROX SUPER APP</h1>
+        <div class='badge'>CHC • WEB3 • BNB CHAIN • CHOROX</div>
+        <h1>💎 CHC SUPER APP- CHARLYCOIN</h1>
         <div class='sub'>
             Wallet descentralizada, explorer en vivo,
             minería CHC y herramientas Web3 en una sola app.
