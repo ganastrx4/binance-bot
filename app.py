@@ -244,6 +244,7 @@ def wallet():
 
     <br>
     <a href='/seed' style='color:cyan'>🔑 Ver llave</a><br><br>
+    <a href="/backup">📥 Descargar Backup</a>
     <a href='/' style='color:lime'>🏠 Inicio</a>
 
     </body>
