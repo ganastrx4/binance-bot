@@ -405,6 +405,35 @@ def minar():
     })
 
 # ============================================================
+# backup
+# ============================================================
+@app.route("/backup")
+def backup():
+
+    if "uid" not in session:
+        return "No wallet"
+
+    row = wallets.find_one({"uid": session["uid"]})
+
+    data = {
+        "address": row["address"],
+        "seed": row.get("seed",""),
+        "private_key": row.get("private","")
+    }
+
+    mem = io.BytesIO()
+    mem.write(json.dumps(data, indent=4).encode())
+    mem.seek(0)
+
+    return send_file(
+        mem,
+        as_attachment=True,
+        download_name="chorox_wallet_backup.json",
+        mimetype="application/json"
+    )
+
+
+# ============================================================
 # START
 # ============================================================
 
@@ -415,6 +444,8 @@ from flask import session
 import secrets
 from web3 import Web3
 from eth_account import Account
+from flask import send_file
+import json, io
 
 app.secret_key = "charly_super_wallet"
 
