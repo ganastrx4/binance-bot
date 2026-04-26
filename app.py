@@ -722,7 +722,8 @@ const stats = await b.json()
 
 document.getElementById("blocks").innerText = stats.bloques
 document.getElementById("supply").innerText = stats.supply.toLocaleString() + " CHC"
-document.getElementById("reward").innerText = stats.recompensa + " CHC"
+document.getElementById("last-reward").innerText =
+(parseFloat(stats.recompensa || 0)).toFixed(8) + " CHC";
 
 let html = ""
 
