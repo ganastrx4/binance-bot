@@ -693,7 +693,7 @@ font-size:12px;
 </tr>
 </thead>
 
-<tbody id="tabla"></tbody>
+<tbody id="blockchain-table"></tbody>
 
 </table>
 </div>
