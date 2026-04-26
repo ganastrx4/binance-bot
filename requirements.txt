@@ -6,3 +6,4 @@ dnspython
 ecdsa
 requests
 gunicorn
+web3
