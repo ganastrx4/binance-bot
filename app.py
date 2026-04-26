@@ -727,13 +727,16 @@ const chain = await a.json()
 const stats = await b.json()
 
 document.getElementById("blocks").innerText =
-Number(stats.bloques || 0).toLocaleString();
+Number(stats.bloques || 0).toLocaleString("es-MX");
 
 document.getElementById("supply").innerText =
-Number(stats.supply || 0).toLocaleString() + " CHC";
+Number(stats.supply || 0).toLocaleString("es-MX") + " CHC";
 
 document.getElementById("last-reward").innerText =
-Number(stats.recompensa || 0).toFixed(8) + " CHC";
+Number(stats.recompensa || 0).toLocaleString("es-MX", {
+minimumFractionDigits: 8,
+maximumFractionDigits: 8
+}) + " CHC";
 
 let html = ""
 
