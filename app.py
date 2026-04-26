@@ -426,12 +426,12 @@ def stats():
     result = list(collection.aggregate(pipeline))
     supply = result[0]["total"] if result else 0
 
-    reward = float(recompensa_actual())
+    reward = recompensa_actual()
 
     return jsonify({
         "bloques": max(total - 1, 0),
         "supply": round(float(supply), 2),
-        "recompensa": round(reward, 8),
+        "recompensa": float(reward),
         "dificultad": DIFICULTAD
     })
 
