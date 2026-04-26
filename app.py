@@ -720,10 +720,14 @@ fetch('/stats')
 const chain = await a.json()
 const stats = await b.json()
 
-document.getElementById("blocks").innerText = stats.bloques
-document.getElementById("supply").innerText = stats.supply.toLocaleString() + " CHC"
+document.getElementById("blocks").innerText =
+Number(stats.bloques || 0).toLocaleString();
+
+document.getElementById("supply").innerText =
+Number(stats.supply || 0).toLocaleString() + " CHC";
+
 document.getElementById("last-reward").innerText =
-(parseFloat(stats.recompensa || 0)).toFixed(8) + " CHC";
+Number(stats.recompensa || 0).toFixed(8) + " CHC";
 
 let html = ""
 
