@@ -32,9 +32,7 @@ from web3 import Web3
 from eth_account import Account
 from eth_account.hdaccount import generate_mnemonic
 
-# ============================================================
-# APP
-# ============================================================
+
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "charly-super-key")
