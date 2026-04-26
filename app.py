@@ -1035,10 +1035,13 @@ def chc_available(uid):
     if not row:
         return 0
 
-    mined = float(row.get("chc_total", 0))
+    addr = row["address"]
+
+    real = balance_calc(addr)   # TU FUNCION REAL DEL MINER
+
     swapped = float(row.get("chc_swapped", 0))
 
-    return mined - swapped
+    return max(real - swapped, 0)
 
 # ==========================================================
 # SEND CHOROX
