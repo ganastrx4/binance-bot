@@ -318,6 +318,17 @@ def home():
             <a class='btn scan' href='/scan'>⛓ Blockchain Explorer</a>
             <a class='btn stats' href='/stats'>📊 Estadísticas</a>
             <a class='btn mine' href='/cadena'>🚀 Últimos Bloques</a>
+
+            <a class='btn trade' href='/trade'>📈 Comprar Criptos</a>
+            <a class='btn swap' href='/swap'>🔄 Swap CHC ↔ CHOROX</a>
+            <a class='btn market' href='/prices'>🔥 Mercado Binance</a>
+
+
+
+
+
+
+            
         </div>
 
         <div class='row'>
