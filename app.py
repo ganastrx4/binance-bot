@@ -168,45 +168,190 @@ def home():
     <html>
     <head>
     <meta name='viewport' content='width=device-width,initial-scale=1'>
+    <title>CHOROX Super App</title>
+
     <style>
-    body{
+    *{
         margin:0;
-        font-family:Arial;
-        background:#070b14;
+        padding:0;
+        box-sizing:border-box;
+    }
+
+    body{
+        font-family:Arial,Helvetica,sans-serif;
+        background:#050816;
         color:white;
-        text-align:center;
+        min-height:100vh;
     }
-    .top{
-        padding:40px;
-        background:linear-gradient(135deg,#00bcd4,#2563eb);
-        border-radius:0 0 30px 30px;
+
+    .hero{
+        padding:55px 25px 45px 25px;
+        background:
+        radial-gradient(circle at top right,#1d4ed8 0%,transparent 35%),
+        radial-gradient(circle at top left,#06b6d4 0%,transparent 35%),
+        linear-gradient(135deg,#0f172a,#111827,#0b1020);
+        border-radius:0 0 35px 35px;
+        box-shadow:0 10px 30px rgba(0,0,0,.45);
     }
+
+    .badge{
+        display:inline-block;
+        padding:8px 14px;
+        border-radius:30px;
+        background:rgba(255,255,255,.08);
+        font-size:12px;
+        letter-spacing:1px;
+        margin-bottom:18px;
+        border:1px solid rgba(255,255,255,.08);
+    }
+
+    h1{
+        font-size:34px;
+        font-weight:900;
+        letter-spacing:.5px;
+        margin-bottom:10px;
+    }
+
+    .sub{
+        color:#cbd5e1;
+        font-size:15px;
+        line-height:1.6;
+        max-width:500px;
+        margin:auto;
+    }
+
+    .wrap{
+        padding:22px;
+        max-width:650px;
+        margin:auto;
+    }
+
+    .card{
+        background:#0f172a;
+        border:1px solid #1e293b;
+        border-radius:22px;
+        padding:18px;
+        margin-bottom:18px;
+        box-shadow:0 8px 24px rgba(0,0,0,.25);
+    }
+
+    .row{
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:14px;
+        margin-top:14px;
+    }
+
     .btn{
         display:block;
-        margin:15px;
-        padding:16px;
-        border-radius:14px;
-        background:#111827;
-        color:white;
         text-decoration:none;
-        font-weight:bold;
+        color:white;
+        font-weight:700;
+        padding:18px;
+        border-radius:18px;
+        margin-bottom:14px;
+        transition:.2s;
+    }
+
+    .btn:active{
+        transform:scale(.98);
+    }
+
+    .wallet{
+        background:linear-gradient(135deg,#2563eb,#1d4ed8);
+    }
+
+    .scan{
+        background:linear-gradient(135deg,#10b981,#059669);
+    }
+
+    .stats{
+        background:linear-gradient(135deg,#7c3aed,#6d28d9);
+    }
+
+    .mine{
+        background:linear-gradient(135deg,#f59e0b,#d97706);
+    }
+
+    .mini{
+        background:#111827;
+        border:1px solid #1f2937;
+        border-radius:18px;
+        padding:16px;
+        text-align:left;
+    }
+
+    .mini small{
+        color:#94a3b8;
+        display:block;
+        margin-bottom:8px;
+    }
+
+    .mini b{
+        font-size:18px;
+    }
+
+    .footer{
+        text-align:center;
+        color:#64748b;
+        font-size:12px;
+        padding:20px 0 35px;
     }
     </style>
     </head>
+
     <body>
 
-    <div class='top'>
-        <h1>🚀 CHOROX SUPER APP</h1>
-        <p>Minería + Wallet + Explorer</p>
+    <div class='hero'>
+        <div class='badge'>WEB3 • BNB CHAIN • CHOROX</div>
+        <h1>💎 CHOROX SUPER APP</h1>
+        <div class='sub'>
+            Wallet descentralizada, explorer en vivo,
+            minería CHC y herramientas Web3 en una sola app.
+        </div>
     </div>
 
-    <a class='btn' href='/wallet'>💎 Wallet</a>
-    <a class='btn' href='/scan'>⛓ Explorer</a>
-    <a class='btn' href='/stats'>📊 Stats API</a>
+    <div class='wrap'>
+
+        <div class='card'>
+            <a class='btn wallet' href='/wallet'>💼 Abrir Wallet</a>
+            <a class='btn scan' href='/scan'>⛓ Blockchain Explorer</a>
+            <a class='btn stats' href='/stats'>📊 Estadísticas</a>
+            <a class='btn mine' href='/cadena'>🚀 Últimos Bloques</a>
+        </div>
+
+        <div class='row'>
+            <div class='mini'>
+                <small>Token Principal</small>
+                <b>CHOROX</b>
+            </div>
+
+            <div class='mini'>
+                <small>Red</small>
+                <b>BNB Smart Chain</b>
+            </div>
+
+            <div class='mini'>
+                <small>Minería</small>
+                <b>CHC Network</b>
+            </div>
+
+            <div class='mini'>
+                <small>Estado</small>
+                <b style='color:#22c55e;'>● Online</b>
+            </div>
+        </div>
+
+        <div class='footer'>
+            Powered by Charly Network • Trust Style UI
+        </div>
+
+    </div>
 
     </body>
     </html>
     """
+
     return html
 
 # ============================================================
