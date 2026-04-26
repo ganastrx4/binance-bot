@@ -41,6 +41,29 @@ CORS(app)
 PORT = int(os.environ.get("PORT", 10000))
 
 # ============================================================
+# chc_available
+# ============================================================
+def chc_available(uid):
+
+    row = wallets.find_one({"uid": uid})
+    addr = row["address"]
+
+    pipeline = [
+        {"$unwind":"$transacciones"},
+        {"$match":{"transacciones.receptor":addr}},
+        {"$group":{"_id":None,"total":{"$sum":"$transacciones.monto"}}}
+    ]
+
+    res = list(collection.aggregate(pipeline))
+
+    mined = res[0]["total"] if res else 0
+
+    swapped = row.get("chc_swapped",0)
+
+    return mined - swapped
+
+
+# ============================================================
 # MONGO
 # ============================================================
 
