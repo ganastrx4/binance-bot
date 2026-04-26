@@ -880,6 +880,18 @@ def backup():
         mimetype="application/json"
     )
 
+# ============================================================
+# cadena
+# ============================================================
+
+@app.route("/cadena")
+def cadena():
+    datos = list(
+        collection.find({}, {"_id": 0})
+        .sort("indice", DESCENDING)
+        .limit(50)
+    )
+    return jsonify(datos)
 
 # ============================================================
 # START
