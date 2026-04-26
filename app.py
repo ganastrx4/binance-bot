@@ -445,21 +445,15 @@ def stats():
 # SCAN
 # ============================================================
 
-# ============================================================
-# SCAN PROFESIONAL (REEMPLAZA SOLO TU RUTA /scan)
-# NO TOCA /minar /cadena /stats /balance
-# LOS MINEROS SIGUEN FUNCIONANDO IGUAL
-# ============================================================
-
 @app.route("/scan")
 def scan():
 
     html = """
 <!DOCTYPE html>
-<html lang="es">
+<html lang='es'>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
 <title>CharlyScan PRO</title>
 
 <style>
@@ -471,224 +465,247 @@ box-sizing:border-box;
 
 body{
 font-family:Arial,Helvetica,sans-serif;
-background:#070b14;
+background:#050816;
 color:white;
-padding:18px;
+padding:22px;
 }
 
 .wrap{
-max-width:1300px;
+max-width:1400px;
 margin:auto;
 }
 
 .top{
-background:linear-gradient(135deg,#06b6d4,#2563eb,#1d4ed8);
-padding:30px;
-border-radius:24px;
-margin-bottom:20px;
-box-shadow:0 12px 35px rgba(0,0,0,.35);
+background:linear-gradient(135deg,#00c6ff,#1d4ed8,#312e81);
+padding:38px;
+border-radius:28px;
+box-shadow:0 20px 50px rgba(0,0,0,.35);
+margin-bottom:22px;
 }
 
-.top h1{
-font-size:38px;
+.logo{
+font-size:46px;
 font-weight:900;
+letter-spacing:2px;
 }
 
-.top p{
-opacity:.92;
-margin-top:8px;
+.sub{
+margin-top:10px;
+font-size:18px;
+opacity:.9;
 }
 
 .grid{
 display:grid;
-grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
-gap:15px;
-margin-bottom:20px;
+grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+gap:18px;
+margin-bottom:22px;
 }
 
 .card{
-background:#111827;
-border:1px solid #1f2937;
-border-radius:18px;
-padding:18px;
-box-shadow:0 8px 24px rgba(0,0,0,.22);
+background:#091224;
+border:1px solid #162544;
+border-radius:22px;
+padding:24px;
+box-shadow:0 10px 30px rgba(0,0,0,.25);
 }
 
-.card small{
-display:block;
-color:#94a3b8;
-margin-bottom:8px;
-font-size:12px;
+.label{
+font-size:13px;
+color:#93a4c7;
+letter-spacing:2px;
 text-transform:uppercase;
-letter-spacing:1px;
+margin-bottom:14px;
 }
 
 .big{
-font-size:28px;
+font-size:42px;
 font-weight:900;
 }
 
 .green{color:#22c55e;}
-.yellow{color:#facc15;}
 .cyan{color:#22d3ee;}
+.yellow{color:#facc15;}
 .purple{color:#c084fc;}
 
-.search{
+.wallet{
+background:#091224;
+border:1px solid #162544;
+border-radius:24px;
+padding:25px;
+margin-bottom:22px;
+}
+
+.row{
 display:flex;
-gap:10px;
-margin-bottom:20px;
+gap:15px;
 flex-wrap:wrap;
 }
 
-.search input{
+input{
 flex:1;
-min-width:250px;
-padding:15px;
-border:none;
-outline:none;
-border-radius:14px;
-background:#111827;
-color:#22d3ee;
-font-size:15px;
-}
-
-.search button{
-padding:15px 22px;
-border:none;
-border-radius:14px;
-background:#2563eb;
+min-width:260px;
+padding:18px;
+background:#030712;
+border:1px solid #1e293b;
 color:white;
-font-weight:700;
-cursor:pointer;
+border-radius:16px;
+font-size:16px;
 }
 
-.tablebox{
-background:#111827;
-border:1px solid #1f2937;
-border-radius:18px;
+button{
+padding:18px 34px;
+border:none;
+border-radius:16px;
+font-weight:800;
+cursor:pointer;
+background:linear-gradient(135deg,#2563eb,#1d4ed8);
+color:white;
+font-size:16px;
+}
+
+button:hover{
+transform:scale(1.03);
+}
+
+.balance{
+margin-top:18px;
+font-size:40px;
+font-weight:900;
+color:#facc15;
+}
+
+.panel{
+background:#091224;
+border:1px solid #162544;
+border-radius:24px;
 overflow:hidden;
 }
 
-.tabletitle{
-padding:16px;
-font-weight:800;
-border-bottom:1px solid #1f2937;
+.head{
+padding:22px;
+font-size:28px;
+font-weight:900;
+border-bottom:1px solid #162544;
+display:flex;
+justify-content:space-between;
+flex-wrap:wrap;
+gap:10px;
 }
 
-.tablewrap{
-overflow-x:auto;
+a{
+color:#22d3ee;
+text-decoration:none;
+font-weight:700;
+}
+
+a:hover{
+color:white;
 }
 
 table{
 width:100%;
 border-collapse:collapse;
-min-width:850px;
 }
 
 th{
-padding:14px;
 text-align:left;
-font-size:12px;
-color:#94a3b8;
-background:#0b1220;
+padding:18px;
+color:#8ea2c9;
+font-size:13px;
+text-transform:uppercase;
+letter-spacing:1px;
+background:#08101d;
 }
 
 td{
-padding:14px;
-border-top:1px solid #1f2937;
-font-size:14px;
+padding:18px;
+border-top:1px solid #13203d;
+font-size:15px;
 }
 
 tr:hover{
-background:#0f172a;
+background:#0d1830;
 }
 
 .hash{
-font-family:monospace;
 font-size:12px;
-color:#64748b;
+color:#7b8cae;
 }
 
 .addr{
-font-family:monospace;
-font-size:12px;
-color:#cbd5e1;
-}
-
-.badge{
-padding:5px 10px;
-border-radius:30px;
-background:#052e16;
-color:#22c55e;
-font-size:12px;
-display:inline-block;
+font-size:13px;
+color:#d1d5db;
 }
 
 .footer{
+margin-top:20px;
 text-align:center;
-padding:25px;
-color:#64748b;
-font-size:12px;
+color:#6b7280;
+font-size:13px;
 }
 
 @media(max-width:700px){
-.top h1{font-size:28px;}
-.big{font-size:24px;}
+.logo{font-size:32px;}
+.big{font-size:28px;}
+.head{font-size:22px;}
 }
 </style>
 </head>
 
 <body>
+<div class='wrap'>
 
-<div class="wrap">
-
-<div class="top">
-<h1>⛓ CHARLYSCAN PRO</h1>
-<p>Blockchain Explorer • Minería CHC en tiempo real</p>
+<div class='top'>
+<div class='logo'>⛓ CHARLYSCAN PRO</div>
+<div class='sub'>Blockchain Explorer • Minería CHC • Wallet Tracker Profesional</div>
 </div>
 
-<div class="grid">
+<div class='grid'>
 
-<div class="card">
-<small>Estado Nodo</small>
-<div class="big green">● ONLINE</div>
+<div class='card'>
+<div class='label'>Estado Nodo</div>
+<div class='big green'>● ONLINE</div>
 </div>
 
-<div class="card">
-<small>Bloques</small>
-<div class="big cyan" id="blocks">0</div>
+<div class='card'>
+<div class='label'>Bloques</div>
+<div class='big cyan' id='blocks'>0</div>
 </div>
 
-<div class="card">
-<small>Supply</small>
-<div class="big yellow" id="supply">0 CHC</div>
+<div class='card'>
+<div class='label'>Supply</div>
+<div class='big yellow' id='supply'>0 CHC</div>
 </div>
 
-<div class="card">
-<small>Reward</small>
-<div class="big purple" id="reward">0</div>
+<div class='card'>
+<div class='label'>
+Reward •
+<a target='_blank' href='/stats'>ver stats</a>
+</div>
+<div class='big purple' id='last-reward'>LIVE</div>
 </div>
 
 </div>
 
-<div class="card" style="margin-bottom:20px;">
-<small>Wallet Tracker</small>
+<div class='wallet'>
+<div class='label'>Wallet Tracker</div>
 
-<div class="search">
-<input id="wallet" placeholder="Pega wallet pública CHC...">
-<button onclick="buscar()">Buscar</button>
+<div class='row'>
+<input id='wallet-input' placeholder='Pega wallet pública CHC...'>
+
+<button onclick='buscarWallet()'>Buscar</button>
 </div>
 
-<div class="big yellow" id="saldo">0 CHC</div>
+<div class='balance' id='user-balance'>0 CHC</div>
 </div>
 
-<div class="tablebox">
-
-<div class="tabletitle">
-Últimos Bloques Minados
+<div class='panel'>
+<div class='head'>
+<span>Últimos Bloques Minados</span>
+<a target='_blank' href='/cadena'>Abrir JSON cadena</a>
 </div>
 
-<div class="tablewrap">
 <table>
 <thead>
 <tr>
@@ -699,15 +716,13 @@ font-size:12px;
 </tr>
 </thead>
 
-<tbody id="blockchain-table"></tbody>
+<tbody id='blockchain-table'></tbody>
 
 </table>
 </div>
 
-</div>
-
-<div class="footer">
-Powered by Charly Network • Mining Explorer
+<div class='footer'>
+CHOROX • CHC • CharlyScan Professional Edition
 </div>
 
 </div>
@@ -716,120 +731,57 @@ Powered by Charly Network • Mining Explorer
 
 async function cargar(){
 
-try{
-
-const [a,b] = await Promise.all([
-fetch('/cadena'),
-fetch('/stats')
-])
-
-const chain = await a.json()
-const stats = await b.json()
+let stats = await fetch('/stats').then(r=>r.json());
+let chain = await fetch('/cadena').then(r=>r.json());
 
 document.getElementById("blocks").innerText =
-Number(stats.bloques || 0).toLocaleString("es-MX");
+Number(stats.bloques).toLocaleString("es-MX");
 
 document.getElementById("supply").innerText =
-Number(stats.supply || 0).toLocaleString("es-MX") + " CHC";
+Number(stats.supply).toLocaleString("es-MX") + " CHC";
 
-document.getElementById("last-reward").innerText =
-Number(stats.recompensa || 0).toLocaleString("es-MX", {
-minimumFractionDigits: 8,
-maximumFractionDigits: 8
-}) + " CHC";
+document.getElementById("last-reward").innerHTML =
+"<a target='_blank' href='/stats'>" +
+Number(stats.recompensa).toLocaleString("es-MX") +
+" CHC</a>";
 
-let html = ""
+let html = "";
 
-let tableHtml = "";
+chain.forEach(x=>{
 
-chain.forEach(x => {
+let tx = x.transacciones?.[0];
+if(!tx) return;
 
-    if (!x.transacciones) return;
-    if (x.transacciones.length == 0) return;
+html += `
+<tr>
+<td class='cyan'>#${x.indice}</td>
+<td class='addr'>${String(tx.receptor).substring(0,22)}...</td>
+<td class='yellow'>+${Number(tx.monto).toLocaleString("es-MX")}</td>
+<td class='hash'>${String(x.hash).substring(0,28)}...</td>
+</tr>
+`;
 
-    let tx = x.transacciones[0];
-
-    tableHtml += `
-    <tr>
-        <td>#${x.indice}</td>
-        <td>${String(tx.receptor).substring(0,26)}...</td>
-        <td>+${Number(tx.monto).toLocaleString()}</td>
-        <td>${String(x.hash).substring(0,28)}...</td>
-    </tr>
-    `;
 });
 
-document.getElementById("blockchain-table").innerHTML = tableHtml;
-
-document.getElementById("blockchain-table").innerHTML = tableHtml;
-document.getElementById("tabla").innerHTML = html
-
-}catch(e){
-console.log(e)
-}
+document.getElementById("blockchain-table").innerHTML = html;
 
 }
 
-async function buscar(){
+async function buscarWallet(){
 
-let w = document.getElementById("wallet").value.trim()
+let w = document.getElementById("wallet-input").value.trim();
 
-if(!w) return
+if(!w) return;
 
-try{
+let data = await fetch("/balance/"+w).then(r=>r.json());
 
-let r = await fetch("/balance/" + w)
-let j = await r.json()
-
-document.getElementById("saldo").innerText =
-Number(j.balance).toLocaleString(undefined,{minimumFractionDigits:2}) + " CHC"
-
-}catch(e){}
+document.getElementById("user-balance").innerText =
+Number(data.balance).toLocaleString("es-MX") + " CHC";
 
 }
 
-setInterval(cargar,10000)
-cargar()
-
-async function updateDashboard(){
-
-    const stats = await fetch("/stats").then(r=>r.json());
-    const chain = await fetch("/cadena").then(r=>r.json());
-
-    document.getElementById("blocks").innerText =
-    Number(stats.bloques).toLocaleString("es-MX");
-
-    document.getElementById("supply").innerText =
-    Number(stats.supply).toLocaleString("es-MX") + " CHC";
-
-    document.getElementById("last-reward").innerText =
-    Number(stats.recompensa).toLocaleString("es-MX",{
-        minimumFractionDigits:2,
-        maximumFractionDigits:8
-    }) + " CHC";
-
-    let html = "";
-
-    chain.forEach(x=>{
-
-        let tx = x.transacciones?.[0];
-        if(!tx) return;
-
-        html += `
-        <tr>
-            <td>#${x.indice}</td>
-            <td>${String(tx.receptor).substring(0,20)}...</td>
-            <td>+${Number(tx.monto).toLocaleString("es-MX")}</td>
-            <td>${String(x.hash).substring(0,24)}...</td>
-        </tr>
-        `;
-    });
-
-    document.getElementById("blockchain-table").innerHTML = html;
-}
-
-updateDashboard();
-setInterval(updateDashboard,10000);
+cargar();
+setInterval(cargar,10000);
 
 </script>
 
