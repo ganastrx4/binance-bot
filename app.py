@@ -1075,46 +1075,35 @@ def chc_available(uid):
 @app.route("/swap")
 def swap():
 
-    if "uid" not in session:
-        return redirect("/wallet")
-
-    uid = session["uid"]
-    row = wallets.find_one({"uid": uid})
-
-    bal = chc_available(uid)
-
-    addr = row["address"]
-
-    html = f"""
+    return """
     <html>
-    <head>
-    <meta name='viewport' content='width=device-width,initial-scale=1'>
-    <style>
-    body{{background:#070b14;color:white;font-family:Arial;padding:20px}}
-    .card{{background:#111827;padding:20px;border-radius:20px;max-width:600px;margin:auto}}
-    input{{width:100%;padding:14px;border-radius:12px;border:0;margin-top:10px;background:#0b1020;color:white}}
-    button{{width:100%;padding:16px;background:#10b981;border:0;color:white;font-weight:bold;border-radius:14px;margin-top:14px}}
-    small{{color:#aaa}}
-    </style>
-    </head>
-    <body>
+    <body style='background:#070b14;color:white;font-family:Arial;padding:20px'>
 
-    <div class='card'>
+    <div style='max-width:600px;margin:auto;background:#111827;padding:25px;border-radius:20px'>
+
     <h2>🔄 Swap CHC → CHOROX</h2>
-
-    <p>CHC disponibles: <b>{round(bal,2)}</b></p>
-    <p>100 CHC = 1 CHOROX</p>
-    <p>Comisión 1%</p>
 
     <form method='post' action='/swap_now'>
 
-    <input name='amount' placeholder='Cantidad CHC'>
+    <input name='miner'
+    placeholder='Dirección Minero CHC'
+    style='width:100%;padding:14px;margin:8px 0'>
 
-    <input name='to' placeholder='Wallet BSC destino (opcional)'>
+    <input name='seed'
+    placeholder='Palabras / clave minera'
+    style='width:100%;padding:14px;margin:8px 0'>
 
-    <small>Usar wallet generada por la app:<br>{addr}</small>
+    <input name='amount'
+    placeholder='Cantidad CHC'
+    style='width:100%;padding:14px;margin:8px 0'>
 
-    <button>Cambiar Ahora</button>
+    <input name='to'
+    placeholder='Wallet BSC destino'
+    style='width:100%;padding:14px;margin:8px 0'>
+
+    <button style='width:100%;padding:16px;background:#10b981;color:white;border:0;border-radius:14px'>
+    CAMBIAR AHORA
+    </button>
 
     </form>
 
@@ -1122,8 +1111,6 @@ def swap():
     </body>
     </html>
     """
-
-    return html
 
 # ==========================================================
 # EJECUTAR SWAP
