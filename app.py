@@ -259,15 +259,11 @@ def wallet():
 def seed():
 
     if "uid" not in session:
-        return redirect("/wallet")
+        return "No wallet"
 
     row = wallets.find_one({"uid": session["uid"]})
 
-    return f"""
-    <h1>Tu Semilla</h1>
-    <p>{row["mnemonic"]}</p>
-    <a href='/wallet'>Volver</a>
-    """
+    return f"<h2>{row['private']}</h2>"
 
 # ============================================================
 # SCAN
