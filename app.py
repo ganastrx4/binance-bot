@@ -17,6 +17,7 @@ import json
 import time
 import hashlib
 import secrets
+available = mined - swapped
 
 from flask import (
     Flask, request, jsonify,
@@ -74,6 +75,13 @@ HALVING_CADA = 21000
 MAX_SUPPLY = 21000000000
 
 ULTIMO_MINADO = {}
+
+# ============================================================
+# swap
+# ============================================================
+
+@app.route("/swap", methods=["GET","POST"])
+def swap():
 
 # ============================================================
 # WEB3 BSC
