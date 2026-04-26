@@ -17,7 +17,7 @@ import json
 import time
 import hashlib
 import secrets
-available = mined - swapped
+
 
 from flask import (
     Flask, request, jsonify,
