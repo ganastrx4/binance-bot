@@ -1118,32 +1118,40 @@ def swap():
 @app.route("/swap_now", methods=["POST"])
 def swap_now():
 
-    if "uid" not in session:
-        return redirect("/wallet")
+    miner = request.form["miner"].strip()
+    seed  = request.form["seed"].strip()
+    amount = float(request.form["amount"])
+    to = request.form["to"].strip()
 
-    uid = session["uid"]
+    # verificar wallet minera existe
+    row = wallets.find_one({
+        "miner_wallet": miner,
+        "seed": seed
+    })
 
-    row = wallets.find_one({"uid": uid})
+    if not row:
+        return "❌ Wallet minera no válida"
 
-    amount = float(request.form.get("amount",0))
+    # calcular saldo real
+    bal = balance_calc(miner)
 
-    to = request.form.get("to","").strip()
+    used = row.get("chc_swapped",0)
 
-    if to == "":
-        to = row["address"]
-
-    try:
-        to = Web3.to_checksum_address(to)
-    except:
-        return "❌ Wallet destino inválida"
-
-    available = chc_available(uid)
-
-    if amount <= 0:
-        return "❌ Cantidad inválida"
+    available = bal - used
 
     if amount > available:
-        return "❌ No tienes suficientes CHC"
+        return "❌ Saldo insuficiente"
+
+    # marcar usados
+    wallets.update_one(
+        {"_id": row["_id"]},
+        {"$inc":{"chc_swapped": amount}}
+    )
+
+    # enviar CHOROX real
+    send_chorox(to, amount)
+
+    return "✅ Swap realizado"
 
     # ======================================================
     # CALCULO
