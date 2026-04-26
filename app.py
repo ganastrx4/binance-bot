@@ -779,28 +779,7 @@ cargar()
 """
     return html
 
-# ============================================================
-# API
-# ============================================================
 
-@app.route("/stats")
-def stats():
-
-    total = collection.count_documents({})
-
-    pipeline = [
-        {"$unwind":"$transacciones"},
-        {"$group":{"_id":None,"total":{"$sum":"$transacciones.monto"}}}
-    ]
-
-    result = list(collection.aggregate(pipeline))
-    supply = result[0]["total"] if result else 0
-
-    return jsonify({
-        "bloques": max(total-1,0),
-        "supply": round(supply,2),
-        "reward": recompensa_actual()
-    })
 
 # ============================================================
 # BALANCE CHC
