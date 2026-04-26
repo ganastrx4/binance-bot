@@ -8,3 +8,4 @@ requests
 gunicorn
 web3
 mnemonic
+eth-account
