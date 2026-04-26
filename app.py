@@ -412,6 +412,30 @@ def seed():
     return f"<h2>{row['private']}</h2>"
 
 # ============================================================
+# stats
+# ============================================================
+@app.route("/stats")
+def stats():
+    total = collection.count_documents({})
+
+    pipeline = [
+        {"$unwind": "$transacciones"},
+        {"$group": {"_id": None, "total": {"$sum": "$transacciones.monto"}}}
+    ]
+
+    result = list(collection.aggregate(pipeline))
+    supply = result[0]["total"] if result else 0
+
+    reward = float(recompensa_actual())
+
+    return jsonify({
+        "bloques": max(total - 1, 0),
+        "supply": round(float(supply), 2),
+        "recompensa": round(reward, 8),
+        "dificultad": DIFICULTAD
+    })
+
+# ============================================================
 # SCAN
 # ============================================================
 
