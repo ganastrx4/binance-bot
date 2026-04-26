@@ -297,6 +297,18 @@ def home():
         font-size:12px;
         padding:20px 0 35px;
     }
+    .trade{
+        background:linear-gradient(135deg,#ec4899,#db2777);
+    }
+
+    .swap{
+        background:linear-gradient(135deg,#06b6d4,#0891b2);
+    }
+
+    .market{
+        background:linear-gradient(135deg,#ef4444,#dc2626);
+    }
+    
     </style>
     </head>
 
