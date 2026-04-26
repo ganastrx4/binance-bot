@@ -727,22 +727,35 @@ document.getElementById("last-reward").innerText =
 
 let html = ""
 
-chain.forEach(x=>{
+let tableHtml = "";
 
-let tx = x.transacciones?.[0]
-if(!tx) return
+chain.forEach(block => {
 
-html += `
-<tr>
-<td class='cyan'>#${x.indice}</td>
-<td class='addr'>${tx.receptor.substring(0,26)}...</td>
-<td class='yellow'>+${Number(tx.monto).toLocaleString()}</td>
-<td class='hash'>${x.hash.substring(0,28)}...</td>
-</tr>
-`
+    if (!block.transacciones) return;
+    if (block.transacciones.length === 0) return;
 
-})
+    let tx = block.transacciones[0];
 
+    tableHtml += `
+    <tr>
+        <td class='cyan'>#${block.indice}</td>
+
+        <td class='addr'>
+            ${String(tx.receptor).substring(0,26)}...
+        </td>
+
+        <td class='yellow'>
+            +${Number(tx.monto).toLocaleString()}
+        </td>
+
+        <td class='hash'>
+            ${String(block.hash).substring(0,28)}...
+        </td>
+    </tr>
+    `;
+});
+
+document.getElementById("blockchain-table").innerHTML = tableHtml;
 document.getElementById("tabla").innerHTML = html
 
 }catch(e){
