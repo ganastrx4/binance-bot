@@ -415,41 +415,343 @@ def seed():
 # SCAN
 # ============================================================
 
+# ============================================================
+# SCAN PROFESIONAL (REEMPLAZA SOLO TU RUTA /scan)
+# NO TOCA /minar /cadena /stats /balance
+# LOS MINEROS SIGUEN FUNCIONANDO IGUAL
+# ============================================================
+
 @app.route("/scan")
 def scan():
 
-    chain = list(
-        collection.find({}, {"_id":0})
-        .sort("indice", DESCENDING)
-        .limit(25)
-    )
+    html = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CharlyScan PRO</title>
 
-    rows = ""
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+}
 
-    for b in chain:
+body{
+font-family:Arial,Helvetica,sans-serif;
+background:#070b14;
+color:white;
+padding:18px;
+}
 
-        tx = b["transacciones"][0] if b["transacciones"] else {}
+.wrap{
+max-width:1300px;
+margin:auto;
+}
 
-        rows += f"""
-        <tr>
-        <td>{b["indice"]}</td>
-        <td>{tx.get("receptor","")[:20]}</td>
-        <td>{tx.get("monto",0)}</td>
-        </tr>
-        """
+.top{
+background:linear-gradient(135deg,#06b6d4,#2563eb,#1d4ed8);
+padding:30px;
+border-radius:24px;
+margin-bottom:20px;
+box-shadow:0 12px 35px rgba(0,0,0,.35);
+}
 
-    html = f"""
-    <html>
-    <body style='background:#000;color:white;font-family:Arial'>
-    <h1>⛓ CHC Explorer</h1>
-    <table border=1 cellpadding=8>
-    <tr><th>Bloque</th><th>Wallet</th><th>Monto</th></tr>
-    {rows}
-    </table>
-    <br><a href='/'>Inicio</a>
-    </body>
-    </html>
-    """
+.top h1{
+font-size:38px;
+font-weight:900;
+}
+
+.top p{
+opacity:.92;
+margin-top:8px;
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+gap:15px;
+margin-bottom:20px;
+}
+
+.card{
+background:#111827;
+border:1px solid #1f2937;
+border-radius:18px;
+padding:18px;
+box-shadow:0 8px 24px rgba(0,0,0,.22);
+}
+
+.card small{
+display:block;
+color:#94a3b8;
+margin-bottom:8px;
+font-size:12px;
+text-transform:uppercase;
+letter-spacing:1px;
+}
+
+.big{
+font-size:28px;
+font-weight:900;
+}
+
+.green{color:#22c55e;}
+.yellow{color:#facc15;}
+.cyan{color:#22d3ee;}
+.purple{color:#c084fc;}
+
+.search{
+display:flex;
+gap:10px;
+margin-bottom:20px;
+flex-wrap:wrap;
+}
+
+.search input{
+flex:1;
+min-width:250px;
+padding:15px;
+border:none;
+outline:none;
+border-radius:14px;
+background:#111827;
+color:#22d3ee;
+font-size:15px;
+}
+
+.search button{
+padding:15px 22px;
+border:none;
+border-radius:14px;
+background:#2563eb;
+color:white;
+font-weight:700;
+cursor:pointer;
+}
+
+.tablebox{
+background:#111827;
+border:1px solid #1f2937;
+border-radius:18px;
+overflow:hidden;
+}
+
+.tabletitle{
+padding:16px;
+font-weight:800;
+border-bottom:1px solid #1f2937;
+}
+
+.tablewrap{
+overflow-x:auto;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+min-width:850px;
+}
+
+th{
+padding:14px;
+text-align:left;
+font-size:12px;
+color:#94a3b8;
+background:#0b1220;
+}
+
+td{
+padding:14px;
+border-top:1px solid #1f2937;
+font-size:14px;
+}
+
+tr:hover{
+background:#0f172a;
+}
+
+.hash{
+font-family:monospace;
+font-size:12px;
+color:#64748b;
+}
+
+.addr{
+font-family:monospace;
+font-size:12px;
+color:#cbd5e1;
+}
+
+.badge{
+padding:5px 10px;
+border-radius:30px;
+background:#052e16;
+color:#22c55e;
+font-size:12px;
+display:inline-block;
+}
+
+.footer{
+text-align:center;
+padding:25px;
+color:#64748b;
+font-size:12px;
+}
+
+@media(max-width:700px){
+.top h1{font-size:28px;}
+.big{font-size:24px;}
+}
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+
+<div class="top">
+<h1>⛓ CHARLYSCAN PRO</h1>
+<p>Blockchain Explorer • Minería CHC en tiempo real</p>
+</div>
+
+<div class="grid">
+
+<div class="card">
+<small>Estado Nodo</small>
+<div class="big green">● ONLINE</div>
+</div>
+
+<div class="card">
+<small>Bloques</small>
+<div class="big cyan" id="blocks">0</div>
+</div>
+
+<div class="card">
+<small>Supply</small>
+<div class="big yellow" id="supply">0 CHC</div>
+</div>
+
+<div class="card">
+<small>Reward</small>
+<div class="big purple" id="reward">0</div>
+</div>
+
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+<small>Wallet Tracker</small>
+
+<div class="search">
+<input id="wallet" placeholder="Pega wallet pública CHC...">
+<button onclick="buscar()">Buscar</button>
+</div>
+
+<div class="big yellow" id="saldo">0 CHC</div>
+</div>
+
+<div class="tablebox">
+
+<div class="tabletitle">
+Últimos Bloques Minados
+</div>
+
+<div class="tablewrap">
+<table>
+<thead>
+<tr>
+<th>Bloque</th>
+<th>Minero</th>
+<th>Reward</th>
+<th>Hash</th>
+</tr>
+</thead>
+
+<tbody id="tabla"></tbody>
+
+</table>
+</div>
+
+</div>
+
+<div class="footer">
+Powered by Charly Network • Mining Explorer
+</div>
+
+</div>
+
+<script>
+
+async function cargar(){
+
+try{
+
+const [a,b] = await Promise.all([
+fetch('/cadena'),
+fetch('/stats')
+])
+
+const chain = await a.json()
+const stats = await b.json()
+
+document.getElementById("blocks").innerText = stats.bloques
+document.getElementById("supply").innerText = stats.supply.toLocaleString() + " CHC"
+document.getElementById("reward").innerText = stats.recompensa + " CHC"
+
+let html = ""
+
+chain.forEach(x=>{
+
+let tx = x.transacciones?.[0]
+if(!tx) return
+
+html += `
+<tr>
+<td class='cyan'>#${x.indice}</td>
+<td class='addr'>${tx.receptor.substring(0,26)}...</td>
+<td class='yellow'>+${Number(tx.monto).toLocaleString()}</td>
+<td class='hash'>${x.hash.substring(0,28)}...</td>
+</tr>
+`
+
+})
+
+document.getElementById("tabla").innerHTML = html
+
+}catch(e){
+console.log(e)
+}
+
+}
+
+async function buscar(){
+
+let w = document.getElementById("wallet").value.trim()
+
+if(!w) return
+
+try{
+
+let r = await fetch("/balance/" + w)
+let j = await r.json()
+
+document.getElementById("saldo").innerText =
+Number(j.balance).toLocaleString(undefined,{minimumFractionDigits:2}) + " CHC"
+
+}catch(e){}
+
+}
+
+setInterval(cargar,10000)
+cargar()
+
+</script>
+
+</body>
+</html>
+"""
     return html
 
 # ============================================================
