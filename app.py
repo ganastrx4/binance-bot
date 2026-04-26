@@ -1,168 +1,114 @@
+# ============================================================
+# app.py ULTIMATE CHOROX + CHC + WALLET + SCAN
+# Basado en tu app actual
+# Mantiene:
+# ✅ minería CHC
+# ✅ explorer
+# ✅ balances
+# Agrega:
+# ✅ wallet estilo Trust Wallet
+# ✅ CHOROX BSC
+# ✅ BNB balance
+# ✅ sesión usuario
+# ============================================================
+
 import os
 import json
 import time
 import hashlib
-from flask import Flask, request, jsonify, render_template_string
+import secrets
+
+from flask import (
+    Flask, request, jsonify,
+    render_template_string,
+    redirect, session
+)
+
 from flask_cors import CORS
 from pymongo import MongoClient, DESCENDING, ASCENDING
-from pymongo.errors import DuplicateKeyError
+
+from web3 import Web3
+from eth_account import Account
+from eth_account.hdaccount import generate_mnemonic
+
+# ============================================================
+# APP
+# ============================================================
 
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "charly-super-key")
 CORS(app)
 
-# ==========================================
-# CONFIG
-# ==========================================
 PORT = int(os.environ.get("PORT", 10000))
+
+# ============================================================
+# MONGO
+# ============================================================
+
 MONGO_URI = os.environ.get("MONGO_URI", "").strip()
 
 if MONGO_URI == "":
     MONGO_URI = "mongodb+srv://charly:caseta82%2A@cluster0.daebfm2.mongodb.net/charlycoin_db?retryWrites=true&w=majority&tls=true"
 
-DIFICULTAD = 5
-RECOMPENSA_INICIAL = 18.0
-HALVING_CADA = 21000
-MAX_SUPPLY = 21000000000 # El límite que querías mostrar
-
-ULTIMO_MINADO = {}
-
 client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=30000)
 db = client["charlycoin_db"]
-collection = db["blockchain"]
 
-# Índices para que no se trabe
+collection = db["blockchain"]
+wallets = db["wallets"]
+
 collection.create_index("hash")
+wallets.create_index("uid", unique=True)
+
 try:
     collection.create_index([("indice", ASCENDING)], unique=True)
 except:
     pass
 
-# ==========================================
-# HTML (CON FIX DE SUPPLY Y LÍMITE)
-# ==========================================
-HTML = """
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CharlyScan - Full Pro</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { background:#070b14; color:#f8fafc; font-family:Segoe UI; }
-        .card { background:#111827; border:1px solid #1f2937; border-radius:16px; }
-        .neon { color:#00f2ff; text-shadow:0 0 15px rgba(0,242,255,.6); }
-        .blink { animation:blink 1.5s infinite; }
-        @keyframes blink { 0%{opacity:1} 50%{opacity:.3} 100%{opacity:1} }
-    </style>
-</head>
-<body class="p-6">
-<div class="max-w-6xl mx-auto">
-    <div class="flex justify-between items-center mb-8">
-        <div>
-            <h1 class="text-5xl font-black neon">CHARLYSCAN</h1>
-            <p class="text-gray-400">Explorador Blockchain PRO</p>
-        </div>
-        <div class="card p-4 text-right">
-            <p class="text-sm text-gray-400">Estado Nodo</p>
-            <p class="text-green-400 font-bold blink">● EN VIVO</p>
-            <p id="total-blocks" class="text-xl mt-2 font-mono">Bloques: 0</p>
-        </div>
-    </div>
+# ============================================================
+# CHC CONFIG
+# ============================================================
 
-    <div class="card p-6 mb-6 border-l-4 border-cyan-500">
-        <p class="text-sm text-gray-400 mb-2 font-bold uppercase tracking-widest">Wallet Tracker</p>
-        <div class="flex gap-2">
-            <input id="wallet-input" class="w-full p-3 bg-black border border-gray-700 rounded text-cyan-300 font-mono" placeholder="Ingresa tu dirección pública..." />
-            <button onclick="updateDashboard()" class="bg-cyan-600 hover:bg-cyan-500 px-8 rounded font-bold transition-all">BUSCAR</button>
-        </div>
-    </div>
+DIFICULTAD = 5
+RECOMPENSA_INICIAL = 18.0
+HALVING_CADA = 21000
+MAX_SUPPLY = 21000000000
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div class="card p-5 border-l-4 border-yellow-500">
-            <p class="text-gray-400 text-xs font-bold uppercase">Mi Saldo</p>
-            <p id="user-balance" class="text-3xl text-yellow-400 font-black font-mono">0.00 CHC</p>
-        </div>
-        <div class="card p-5 border-l-4 border-white">
-            <p class="text-gray-400 text-xs font-bold uppercase">Suministro Actual</p>
-            <p id="total-supply" class="text-3xl font-black font-mono text-white">0 CHC</p>
-            <p class="text-gray-500 text-[10px] mt-1">MÁXIMO: 21,000,000,000 CHC</p>
-        </div>
-        <div class="card p-5 border-l-4 border-purple-500">
-            <p class="text-gray-400 text-xs font-bold uppercase">Recompensa x Bloque</p>
-            <p id="last-reward" class="text-3xl text-purple-400 font-black font-mono">0 CHC</p>
-        </div>
-    </div>
+ULTIMO_MINADO = {}
 
-    <div class="card overflow-hidden">
-        <div class="p-4 border-b border-gray-800 bg-gray-900/50">
-            <h2 class="font-bold">Blockchain Explorer</h2>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left">
-                <thead class="text-gray-500 text-xs uppercase bg-black/30">
-                    <tr>
-                        <th class="p-3">Bloque</th>
-                        <th class="p-3">Minero</th>
-                        <th class="p-3">Monto</th>
-                        <th class="p-3">Hash</th>
-                    </tr>
-                </thead>
-                <tbody id="blockchain-table" class="text-sm"></tbody>
-            </table>
-        </div>
-    </div>
-</div>
+# ============================================================
+# WEB3 BSC
+# ============================================================
 
-<script>
-async function updateDashboard() {
-    try {
-        const wallet = document.getElementById('wallet-input').value.trim();
-        const [chainRes, statsRes] = await Promise.all([
-            fetch('/cadena'),
-            fetch('/stats')
-        ]);
+RPC = "https://bsc-dataseed.binance.org/"
+w3 = Web3(Web3.HTTPProvider(RPC))
 
-        const chain = await chainRes.json();
-        const stats = await statsRes.json();
+TOKEN_ADDRESS = Web3.to_checksum_address(
+    "0x15681a8e9a8df14946a4f852822b709e37b70c4e"
+)
 
-        let tableHtml = "";
-        chain.forEach(block => {
-            const tx = block.transacciones?.[0];
-            if (!tx) return;
-            tableHtml += `
-            <tr class="border-t border-gray-800 hover:bg-gray-900/50">
-                <td class="p-3 text-cyan-400 font-bold">#${block.indice}</td>
-                <td class="p-3 text-xs font-mono text-gray-400">${tx.receptor}</td>
-                <td class="p-3 text-yellow-400 font-bold">+${tx.monto.toLocaleString()}</td>
-                <td class="p-3 text-[10px] text-gray-600 font-mono">${block.hash.substring(0,24)}...</td>
-            </tr>`;
-        });
-
-        document.getElementById("blockchain-table").innerHTML = tableHtml;
-        document.getElementById("total-blocks").innerText = "Bloques: " + stats.bloques;
-        
-        // AQUÍ ESTABA EL ERROR: Usar stats.supply en lugar de stats.recompensa
-        document.getElementById("total-supply").innerText = stats.supply.toLocaleString() + " CHC";
-        document.getElementById("last-reward").innerText = stats.recompensa + " CHC";
-
-        if(wallet !== ""){
-            const balRes = await fetch("/balance/" + wallet);
-            const bal = await balRes.json();
-            document.getElementById("user-balance").innerText = bal.balance.toLocaleString(undefined, {minimumFractionDigits: 2}) + " CHC";
-        }
-    } catch(e){ console.log("Error:", e); }
+TOKEN_ABI = [
+{
+ "constant":True,
+ "inputs":[{"name":"owner","type":"address"}],
+ "name":"balanceOf",
+ "outputs":[{"name":"","type":"uint256"}],
+ "type":"function"
+},
+{
+ "constant":True,
+ "inputs":[],
+ "name":"decimals",
+ "outputs":[{"name":"","type":"uint8"}],
+ "type":"function"
 }
-setInterval(updateDashboard, 10000);
-updateDashboard();
-</script>
-</body>
-</html>
-"""
+]
 
-# ==========================================
-# LÓGICA DE SERVIDOR (MANTENIDA)
-# ==========================================
+token = w3.eth.contract(address=TOKEN_ADDRESS, abi=TOKEN_ABI)
+
+# ============================================================
+# HELPERS
+# ============================================================
+
 def calcular_hash(bloque):
     copia = dict(bloque)
     copia.pop("_id", None)
@@ -172,7 +118,13 @@ def calcular_hash(bloque):
 
 def crear_genesis():
     if collection.count_documents({}) == 0:
-        bloque = {"indice": 0, "timestamp": time.time(), "transacciones": [], "nonce": "0", "hash_anterior": "0"}
+        bloque = {
+            "indice": 0,
+            "timestamp": time.time(),
+            "transacciones": [],
+            "nonce": "0",
+            "hash_anterior": "0"
+        }
         bloque["hash"] = calcular_hash(bloque)
         collection.insert_one(bloque)
 
@@ -181,67 +133,305 @@ def recompensa_actual():
     halvings = bloques // HALVING_CADA
     return max(RECOMPENSA_INICIAL / (2 ** halvings), 0.00000001)
 
+def create_wallet():
+    mnemonic = generate_mnemonic(num_words=12, lang="english")
+    acct = Account.from_mnemonic(mnemonic)
+    return {
+        "address": acct.address,
+        "private_key": acct.key.hex(),
+        "mnemonic": mnemonic
+    }
+
+def get_bnb(addr):
+    try:
+        wei = w3.eth.get_balance(addr)
+        return round(float(w3.from_wei(wei, "ether")), 6)
+    except:
+        return 0
+
+def get_chorox(addr):
+    try:
+        raw = token.functions.balanceOf(addr).call()
+        dec = token.functions.decimals().call()
+        return round(raw / (10 ** dec), 4)
+    except:
+        return 0
+
+# ============================================================
+# HOME
+# ============================================================
+
 @app.route("/")
-def home(): return render_template_string(HTML)
+def home():
+
+    html = """
+    <html>
+    <head>
+    <meta name='viewport' content='width=device-width,initial-scale=1'>
+    <style>
+    body{
+        margin:0;
+        font-family:Arial;
+        background:#070b14;
+        color:white;
+        text-align:center;
+    }
+    .top{
+        padding:40px;
+        background:linear-gradient(135deg,#00bcd4,#2563eb);
+        border-radius:0 0 30px 30px;
+    }
+    .btn{
+        display:block;
+        margin:15px;
+        padding:16px;
+        border-radius:14px;
+        background:#111827;
+        color:white;
+        text-decoration:none;
+        font-weight:bold;
+    }
+    </style>
+    </head>
+    <body>
+
+    <div class='top'>
+        <h1>🚀 CHOROX SUPER APP</h1>
+        <p>Minería + Wallet + Explorer</p>
+    </div>
+
+    <a class='btn' href='/wallet'>💎 Wallet</a>
+    <a class='btn' href='/scan'>⛓ Explorer</a>
+    <a class='btn' href='/stats'>📊 Stats API</a>
+
+    </body>
+    </html>
+    """
+    return html
+
+# ============================================================
+# WALLET
+# ============================================================
+
+@app.route("/wallet")
+def wallet():
+
+    if "uid" not in session:
+
+        uid = secrets.token_hex(8)
+        data = create_wallet()
+
+        wallets.insert_one({
+            "uid": uid,
+            **data
+        })
+
+        session["uid"] = uid
+
+    row = wallets.find_one({"uid": session["uid"]})
+
+    addr = row["address"]
+
+    bnb = get_bnb(addr)
+    chorox = get_chorox(addr)
+
+    chc = balance_calc(addr)
+
+    html = f"""
+    <html>
+    <head>
+    <meta name='viewport' content='width=device-width,initial-scale=1'>
+    <style>
+    body{{background:#0b1020;color:white;font-family:Arial;margin:0}}
+    .top{{padding:30px;background:#2563eb;border-radius:0 0 30px 30px}}
+    .card{{background:#111827;margin:15px;padding:20px;border-radius:18px}}
+    .small{{font-size:12px;color:#bbb}}
+    </style>
+    </head>
+    <body>
+
+    <div class='top'>
+        <h2>💎 CHOROX Wallet</h2>
+        <div class='small'>{addr}</div>
+    </div>
+
+    <div class='card'>
+        <h3>Balances</h3>
+        <p>🟡 BNB: {bnb}</p>
+        <p>💎 CHOROX: {chorox}</p>
+        <p>⛏ CHC: {chc}</p>
+    </div>
+
+    <div class='card'>
+        <a href='/seed'>🔑 Ver Semilla</a><br><br>
+        <a href='/scan'>⛓ Explorer</a>
+    </div>
+
+    </body>
+    </html>
+    """
+    return html
+
+# ============================================================
+# SEED
+# ============================================================
+
+@app.route("/seed")
+def seed():
+
+    if "uid" not in session:
+        return redirect("/wallet")
+
+    row = wallets.find_one({"uid": session["uid"]})
+
+    return f"""
+    <h1>Tu Semilla</h1>
+    <p>{row["mnemonic"]}</p>
+    <a href='/wallet'>Volver</a>
+    """
+
+# ============================================================
+# SCAN
+# ============================================================
+
+@app.route("/scan")
+def scan():
+
+    chain = list(
+        collection.find({}, {"_id":0})
+        .sort("indice", DESCENDING)
+        .limit(25)
+    )
+
+    rows = ""
+
+    for b in chain:
+
+        tx = b["transacciones"][0] if b["transacciones"] else {}
+
+        rows += f"""
+        <tr>
+        <td>{b["indice"]}</td>
+        <td>{tx.get("receptor","")[:20]}</td>
+        <td>{tx.get("monto",0)}</td>
+        </tr>
+        """
+
+    html = f"""
+    <html>
+    <body style='background:#000;color:white;font-family:Arial'>
+    <h1>⛓ CHC Explorer</h1>
+    <table border=1 cellpadding=8>
+    <tr><th>Bloque</th><th>Wallet</th><th>Monto</th></tr>
+    {rows}
+    </table>
+    <br><a href='/'>Inicio</a>
+    </body>
+    </html>
+    """
+    return html
+
+# ============================================================
+# API
+# ============================================================
 
 @app.route("/stats")
 def stats():
+
     total = collection.count_documents({})
-    pipeline = [{"$unwind": "$transacciones"}, {"$group": {"_id": None, "total": {"$sum": "$transacciones.monto"}}}]
+
+    pipeline = [
+        {"$unwind":"$transacciones"},
+        {"$group":{"_id":None,"total":{"$sum":"$transacciones.monto"}}}
+    ]
+
     result = list(collection.aggregate(pipeline))
     supply = result[0]["total"] if result else 0
+
     return jsonify({
-        "bloques": max(total - 1, 0),
-        "supply": round(supply, 2),
-        "recompensa": recompensa_actual(),
-        "dificultad": DIFICULTAD
+        "bloques": max(total-1,0),
+        "supply": round(supply,2),
+        "reward": recompensa_actual()
     })
 
-@app.route("/cadena")
-def cadena():
-    return jsonify(list(collection.find({}, {"_id": 0}).sort("indice", DESCENDING).limit(50)))
+# ============================================================
+# BALANCE CHC
+# ============================================================
+
+def balance_calc(wallet):
+
+    pipeline = [
+        {"$unwind":"$transacciones"},
+        {"$match":{"transacciones.receptor":wallet}},
+        {"$group":{"_id":None,"total":{"$sum":"$transacciones.monto"}}}
+    ]
+
+    res = list(collection.aggregate(pipeline))
+    return round(res[0]["total"],2) if res else 0
 
 @app.route("/balance/<wallet>")
 def balance(wallet):
-    pipeline = [
-        {"$unwind": "$transacciones"},
-        {"$match": {"transacciones.receptor": wallet}},
-        {"$group": {"_id": None, "total": {"$sum": "$transacciones.monto"}}}
-    ]
-    res = list(collection.aggregate(pipeline))
-    return jsonify({"wallet": wallet, "balance": res[0]["total"] if res else 0})
+    return jsonify({
+        "wallet": wallet,
+        "balance": balance_calc(wallet)
+    })
+
+# ============================================================
+# MINAR
+# ============================================================
 
 @app.route("/minar", methods=["POST"])
 def minar():
+
     data = request.get_json(force=True)
-    wallet = str(data.get("wallet", "")).strip()
-    nonce = str(data.get("nonce", "")).strip()
-    if not wallet or not nonce: return jsonify({"error": "datos incompletos"}), 400
-    
-    # Anti-spam simple
+
+    wallet = str(data.get("wallet","")).strip()
+    nonce = str(data.get("nonce","")).strip()
+
+    if not wallet or not nonce:
+        return jsonify({"error":"faltan datos"}),400
+
     ahora = time.time()
-    if wallet in ULTIMO_MINADO and ahora - ULTIMO_MINADO[wallet] < 2:
-        return jsonify({"error": "espera 2 seg"}), 429
 
-    prueba = hashlib.sha256(f"{wallet}{nonce}".encode()).hexdigest()
-    if not prueba.startswith("0" * DIFICULTAD): return jsonify({"error": "hash invalido"}), 400
+    if wallet in ULTIMO_MINADO:
+        if ahora - ULTIMO_MINADO[wallet] < 2:
+            return jsonify({"error":"espera"}),429
 
-    ultimo = collection.find_one(sort=[("indice", -1)])
+    prueba = hashlib.sha256(
+        f"{wallet}{nonce}".encode()
+    ).hexdigest()
+
+    if not prueba.startswith("0"*DIFICULTAD):
+        return jsonify({"error":"hash invalido"}),400
+
+    ultimo = collection.find_one(sort=[("indice",-1)])
+
     nuevo = {
-        "indice": ultimo["indice"] + 1,
+        "indice": ultimo["indice"]+1,
         "timestamp": ahora,
-        "transacciones": [{"emisor": "RED", "receptor": wallet, "monto": recompensa_actual()}],
-        "nonce": nonce,
-        "hash_anterior": ultimo["hash"]
+        "transacciones":[{
+            "emisor":"RED",
+            "receptor":wallet,
+            "monto":recompensa_actual()
+        }],
+        "nonce":nonce,
+        "hash_anterior":ultimo["hash"]
     }
+
     nuevo["hash"] = calcular_hash(nuevo)
-    
-    try:
-        collection.insert_one(nuevo)
-        ULTIMO_MINADO[wallet] = ahora
-        return jsonify({"ok": True, "bloque": nuevo["indice"]})
-    except:
-        return jsonify({"error": "error de red"}), 500
+
+    collection.insert_one(nuevo)
+
+    ULTIMO_MINADO[wallet] = ahora
+
+    return jsonify({
+        "ok":True,
+        "bloque":nuevo["indice"]
+    })
+
+# ============================================================
+# START
+# ============================================================
 
 if __name__ == "__main__":
     crear_genesis()
