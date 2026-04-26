@@ -232,46 +232,25 @@ def wallet():
 
     addr = row["address"]
 
-    bnb = get_bnb(addr)
-    chorox = get_chorox(addr)
-
-    chc = balance_calc(addr)
-
     html = f"""
     <html>
-    <head>
-    <meta name='viewport' content='width=device-width,initial-scale=1'>
-    <style>
-    body{{background:#0b1020;color:white;font-family:Arial;margin:0}}
-    .top{{padding:30px;background:#2563eb;border-radius:0 0 30px 30px}}
-    .card{{background:#111827;margin:15px;padding:20px;border-radius:18px}}
-    .small{{font-size:12px;color:#bbb}}
-    </style>
-    </head>
-    <body>
+    <body style='background:#111;color:white;font-family:Arial;padding:30px'>
+    <h1>💎 Trust Wallet CHOROX</h1>
 
-    <div class='top'>
-        <h2>💎 CHOROX Wallet</h2>
-        <div class='small'>{addr}</div>
-    </div>
+    <p><b>Wallet:</b><br>{addr}</p>
 
-    <div class='card'>
-        <h3>Balances</h3>
-        <p>🟡 BNB: {bnb}</p>
-        <p>💎 CHOROX: {chorox}</p>
-        <p>⛏ CHC: {chc}</p>
-    </div>
+    <p>BNB: {get_bnb(addr)}</p>
+    <p>CHOROX: {get_chorox(addr)}</p>
 
-    <div class='card'>
-        <a href='/seed'>🔑 Ver Semilla</a><br><br>
-        <a href='/scan'>⛓ Explorer</a>
-    </div>
+    <br>
+    <a href='/seed' style='color:cyan'>🔑 Ver llave</a><br><br>
+    <a href='/' style='color:lime'>🏠 Inicio</a>
 
     </body>
     </html>
     """
-    return html
 
+    return html
 # ============================================================
 # SEED
 # ============================================================
@@ -436,7 +415,54 @@ def minar():
 @app.route("/test")
 def test():
     return "ok"
+from flask import session
+import secrets
+from web3 import Web3
+from eth_account import Account
 
+app.secret_key = "charly_super_wallet"
+
+# BSC
+RPC = "https://bsc-dataseed.binance.org/"
+w3 = Web3(Web3.HTTPProvider(RPC))
+
+CHOROX = Web3.to_checksum_address("0x15681a8e9a8df14946a4f852822b709e37b70c4e")
+
+ABI = [
+ {
+   "constant":True,
+   "inputs":[{"name":"owner","type":"address"}],
+   "name":"balanceOf",
+   "outputs":[{"name":"","type":"uint256"}],
+   "type":"function"
+ }
+]
+
+token = w3.eth.contract(address=CHOROX, abi=ABI)
+
+# Mongo
+wallets = db["wallets"]
+
+def create_wallet():
+    acct = Account.create()
+    return {
+        "address": acct.address,
+        "private": acct.key.hex()
+    }
+
+def get_bnb(addr):
+    try:
+        bal = w3.eth.get_balance(addr)
+        return round(w3.from_wei(bal,"ether"),6)
+    except:
+        return 0
+
+def get_chorox(addr):
+    try:
+        bal = token.functions.balanceOf(addr).call()
+        return round(bal / 10**18,4)
+    except:
+        return 0
 if __name__ == "__main__":
     crear_genesis()
     app.run(host="0.0.0.0", port=PORT)
