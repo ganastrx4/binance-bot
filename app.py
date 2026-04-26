@@ -433,6 +433,10 @@ def minar():
 # START
 # ============================================================
 
+@app.route("/test")
+def test():
+    return "ok"
+
 if __name__ == "__main__":
     crear_genesis()
     app.run(host="0.0.0.0", port=PORT)
