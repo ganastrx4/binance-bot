@@ -7,3 +7,4 @@ ecdsa
 requests
 gunicorn
 web3
+mnemonic
