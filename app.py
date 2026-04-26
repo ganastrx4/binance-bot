@@ -80,8 +80,22 @@ ULTIMO_MINADO = {}
 # swap
 # ============================================================
 
-@app.route("/swap", methods=["GET","POST"])
-def swap():
+@app.route("/")
+def home():
+    return """
+    <html>
+    <head>
+        <meta http-equiv="refresh" content="5">
+    </head>
+    <body style='background:black;color:lime;font-size:35px;text-align:center;padding-top:100px'>
+        🤖 MULTI BOT ONLINE | %s
+    </body>
+    </html>
+    """ % datetime.now().strftime('%H:%M:%S')
+
+# ============================================================
+# fin SWAP
+# ============================================================
 
 # ============================================================
 # WEB3 BSC
