@@ -20,7 +20,9 @@ if not MONGO_URI:
 
 DIFICULTAD = 5
 RECOMPENSA = 18.0
-CHOROX_RATE = 1  # 1 CHC = 1 CHOROX (ajústalo)
+CHOROX_RATE = 1  # 1 CHC = 1 CHOROX
+
+from pymongo import MongoClient, ASCENDING
 
 client = MongoClient(MONGO_URI)
 db = client["charlycoin_db"]
@@ -29,15 +31,23 @@ chain = db["blockchain"]
 wallets = db["wallets"]
 txs = db["transacciones"]
 
+# =========================
+# ÍNDICE LIMPIO (SIN ERROR)
+# =========================
 try:
-    chain.drop_index("indice_1")
-except:
-    pass
+    indexes = chain.index_information()
 
-chain.create_index([("indice", ASCENDING)], unique=True)
+    # si existe el índice viejo pero sin unique → lo borramos
+    if "indice_1" in indexes:
+        if not indexes["indice_1"].get("unique", False):
+            chain.drop_index("indice_1")
 
-if "indice_1" not in chain.index_information():
-    chain.create_index([("indice", ASCENDING)], unique=True)
+    # crear índice correcto solo si no existe o fue eliminado
+    if "indice_1" not in chain.index_information():
+        chain.create_index([("indice", ASCENDING)], unique=True)
+
+except Exception as e:
+    print("⚠️ Error manejando índices:", e)
 
 # =========================
 # GENESIS
