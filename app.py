@@ -1,548 +1,266 @@
 # ============================================================
-# app.py V10 LIMPIO TOTAL
-# CHC + Wallet + Explorer + Bonus + Prices
-# Render Ready
+# APP.PY V4 GODCHAIN EXCHANGE (CLEAN + FUNCIONAL)
 # ============================================================
 
 import os
-import io
-import json
 import time
+import json
 import hashlib
 import secrets
 from datetime import datetime, timedelta
 
-from flask import (
-    Flask, request, jsonify,
-    session, send_file
-)
+from flask import Flask, request, jsonify, session, send_file, redirect
 from flask_cors import CORS
-from pymongo import MongoClient, DESCENDING, ASCENDING
-import requests
+from pymongo import MongoClient
+from web3 import Web3
+from eth_account import Account
 
 # ============================================================
 # APP
 # ============================================================
-
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "charly_v10_key")
+app.secret_key = os.getenv("SECRET_KEY", "godchain_key")
 CORS(app)
-
-PORT = int(os.getenv("PORT", 10000))
 
 # ============================================================
 # MONGO
 # ============================================================
+MONGO_URI = os.getenv("MONGO_URI")
+client = MongoClient(MONGO_URI)
+db = client["godchain"]
 
-MONGO_URI = os.getenv("MONGO_URI", "").strip()
-
-client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=30000)
-db = client["charlycoin_db"]
-
-collection = db["blockchain"]
 wallets = db["wallets"]
-claims = db["bonus_claims"]
-
-collection.create_index("hash")
-wallets.create_index("uid", unique=True)
-
-try:
-    collection.create_index([("indice", ASCENDING)], unique=True)
-except:
-    pass
+chain = db["chain"]
+swaps = db["swaps"]
+claims = db["claims"]
 
 # ============================================================
-# CONFIG CHC
+# BSC / WEB3
 # ============================================================
+RPC = "https://bsc-dataseed.binance.org/"
+w3 = Web3(Web3.HTTPProvider(RPC))
 
-DIFICULTAD = 5
-RECOMPENSA_INICIAL = 18.0
-HALVING_CADA = 21000
+ADMIN = Web3.to_checksum_address(os.getenv("ADMIN_ADDR", "0x0000000000000000000000000000000000000000"))
+PRIVATE_KEY = os.getenv("PRIVATE_KEY")
 
-ULTIMO_MINADO = {}
+TOKEN = Web3.to_checksum_address("0x15681A8E9a8dF14946A4F852822b709e37b70c4E")
+
+ERC20_ABI = [
+    {
+        "name": "transfer",
+        "type": "function",
+        "inputs": [
+            {"name": "_to", "type": "address"},
+            {"name": "_value", "type": "uint256"}
+        ],
+        "outputs": [{"type": "bool"}],
+        "constant": False
+    },
+    {
+        "name": "balanceOf",
+        "type": "function",
+        "inputs": [{"name": "owner", "type": "address"}],
+        "outputs": [{"type": "uint256"}],
+        "constant": True
+    }
+]
+
+token = w3.eth.contract(address=TOKEN, abi=ERC20_ABI)
 
 # ============================================================
 # HELPERS
 # ============================================================
-
-def calcular_hash(bloque):
-    copia = dict(bloque)
-    copia.pop("_id", None)
-    copia.pop("hash", None)
-
-    texto = json.dumps(
-        copia,
-        sort_keys=True
-    ).encode()
-
-    return hashlib.sha256(texto).hexdigest()
-
-
-def crear_genesis():
-
-    if collection.count_documents({}) == 0:
-
-        bloque = {
-            "indice": 0,
-            "timestamp": time.time(),
-            "transacciones": [],
-            "nonce": "0",
-            "hash_anterior": "0"
-        }
-
-        bloque["hash"] = calcular_hash(bloque)
-        collection.insert_one(bloque)
-
-
-def recompensa_actual():
-
-    bloques = max(collection.count_documents({}) - 1, 0)
-
-    halvings = bloques // HALVING_CADA
-
-    reward = RECOMPENSA_INICIAL / (2 ** halvings)
-
-    if reward < 0.00000001:
-        reward = 0.00000001
-
-    return reward
-
-
 def create_wallet():
+    acct = Account.create()
     return {
-        "address": "CHC_" + secrets.token_hex(20),
-        "private_key": secrets.token_hex(32),
-        "seed": secrets.token_hex(16)
+        "address": acct.address,
+        "private": acct.key.hex()
     }
 
+def get_chorox(addr):
+    try:
+        bal = token.functions.balanceOf(addr).call()
+        return bal / 10**18
+    except:
+        return 0
 
-def balance_calc(wallet):
+def hash_block(block):
+    b = dict(block)
+    b.pop("_id", None)
+    return hashlib.sha256(json.dumps(b, sort_keys=True).encode()).hexdigest()
 
-    pipeline = [
-        {"$unwind": "$transacciones"},
-        {"$match": {"transacciones.receptor": wallet}},
-        {"$group": {
-            "_id": None,
-            "total": {"$sum": "$transacciones.monto"}
-        }}
-    ]
-
-    res = list(collection.aggregate(pipeline))
-
-    return round(res[0]["total"], 4) if res else 0
-
-
-# ============================================================
-# HOME
-# ============================================================
-
-@app.route("/")
-def home():
-    return """
-    <html>
-    <body style='background:#0b1220;color:white;
-    font-family:Arial;padding:30px'>
-
-    <h1>💎 CHC SUPER APP V10</h1>
-
-    <p>Wallet + Minería + Explorer + Bonus</p>
-
-    <hr>
-
-    <a href='/wallet'>💼 Wallet</a><br><br>
-    <a href='/scan'>⛓ Explorer</a><br><br>
-    <a href='/stats'>📊 Stats</a><br><br>
-    <a href='/prices'>📈 Binance Prices</a><br><br>
-
-    <hr>
-
-    <form method='post' action='/claim_bonus'>
-    <input name='wallet' placeholder='Wallet'>
-    <button>🎁 Reclamar Bonus</button>
-    </form>
-
-    </body>
-    </html>
-    """
-
+def chc_balance(wallet):
+    data = chain.aggregate([
+        {"$unwind": "$tx"},
+        {"$match": {"tx.to": wallet}},
+        {"$group": {"_id": None, "total": {"$sum": "$tx.amount"}}}
+    ])
+    res = list(data)
+    return res[0]["total"] if res else 0
 
 # ============================================================
-# WALLET
+# WALLET SESSION
 # ============================================================
-
 @app.route("/wallet")
 def wallet():
-
     if "uid" not in session:
-
         uid = secrets.token_hex(8)
-
-        data = create_wallet()
-
-        wallets.insert_one({
-            "uid": uid,
-            **data
-        })
-
+        w = create_wallet()
+        wallets.insert_one({"uid": uid, **w, "chc_swapped": 0})
         session["uid"] = uid
 
-    row = wallets.find_one({"uid": session["uid"]})
-
-    addr = row["address"]
-
-    bal = balance_calc(addr)
-
-    return f"""
-    <html>
-    <body style='background:#111;color:white;
-    font-family:Arial;padding:30px'>
-
-    <h1>💼 CHC Wallet</h1>
-
-    <p><b>Address:</b><br>{addr}</p>
-
-    <p><b>Balance:</b> {bal} CHC</p>
-
-    <p><b>Seed:</b> {row["seed"]}</p>
-
-    <a href='/backup'>📥 Backup</a><br><br>
-    <a href='/'>🏠 Inicio</a>
-
-    </body>
-    </html>
-    """
-
-
-# ============================================================
-# BACKUP
-# ============================================================
-
-@app.route("/backup")
-def backup():
-
-    if "uid" not in session:
-        return "No wallet"
-
-    row = wallets.find_one({"uid": session["uid"]})
-
-    data = {
-        "address": row["address"],
-        "private_key": row["private_key"],
-        "seed": row["seed"]
-    }
-
-    mem = io.BytesIO()
-    mem.write(json.dumps(data, indent=4).encode())
-    mem.seek(0)
-
-    return send_file(
-        mem,
-        as_attachment=True,
-        download_name="wallet_backup.json",
-        mimetype="application/json"
-    )
-
-
-# ============================================================
-# BONUS
-# ============================================================
-
-# ===============================================================
-# PATCH EXIT ENGINE PRO COMISIONES + ROI REAL
-# Reemplaza SOLO tus variables y función exit_engine()
-# ===============================================================
-
-# NUEVOS OBJETIVOS MÁS INTELIGENTES
-TP1_ROI = 0.8        # no salir antes de cubrir fees
-TP2_ROI = 2.0
-TP3_ARM = 5.0
-
-SL_ROI = -5.0        # como pediste
-TRAIL_BACK = 0.72    # deja correr más
-
-MIN_PNL_NET = 0.05   # ganancia mínima real
-FEE_EST = 0.04       # comisión total estimada roundtrip
-
-
-def net_ok(pnl):
-    return pnl >= MIN_PNL_NET
-
-
-def exit_engine(symbol, long_amt, short_amt, roi_long, roi_short,
-                pnl_long=0, pnl_short=0):
-
-    init_symbol(symbol)
-
-    # ================= LONG =================
-    if long_amt > 0:
-
-        if roi_long > PEAK_ROI[symbol]["long"]:
-            PEAK_ROI[symbol]["long"] = roi_long
-
-        peak = PEAK_ROI[symbol]["long"]
-
-        # STOP REAL
-        if roi_long <= SL_ROI:
-            close_long(symbol, fix_qty(symbol, long_amt))
-            print(symbol, "LONG STOP -5%")
-            reset_side(symbol, "long")
-            return True
-
-        # TP1 solo si hay ganancia neta
-        if (
-            roi_long >= TP1_ROI and
-            not TP_STATE[symbol]["long_tp1"] and
-            net_ok(pnl_long - FEE_EST)
-        ):
-            close_long(symbol, fix_qty(symbol, long_amt * 0.25))
-            TP_STATE[symbol]["long_tp1"] = True
-            print(symbol, "LONG TP1 NETO")
-            return True
-
-        # TP2
-        if (
-            roi_long >= TP2_ROI and
-            not TP_STATE[symbol]["long_tp2"] and
-            net_ok(pnl_long - FEE_EST)
-        ):
-            close_long(symbol, fix_qty(symbol, long_amt * 0.50))
-            TP_STATE[symbol]["long_tp2"] = True
-            print(symbol, "LONG TP2 NETO")
-            return True
-
-        # TRAILING
-        if (
-            peak >= TP3_ARM and
-            roi_long <= peak * TRAIL_BACK and
-            net_ok(pnl_long - FEE_EST)
-        ):
-            close_long(symbol, fix_qty(symbol, long_amt))
-            print(symbol, "LONG TRAIL PROFIT")
-            reset_side(symbol, "long")
-            return True
-
-    else:
-        reset_side(symbol, "long")
-
-    # ================= SHORT =================
-    if short_amt > 0:
-
-        if roi_short > PEAK_ROI[symbol]["short"]:
-            PEAK_ROI[symbol]["short"] = roi_short
-
-        peak = PEAK_ROI[symbol]["short"]
-
-        if roi_short <= SL_ROI:
-            close_short(symbol, fix_qty(symbol, short_amt))
-            print(symbol, "SHORT STOP -5%")
-            reset_side(symbol, "short")
-            return True
-
-        if (
-            roi_short >= TP1_ROI and
-            not TP_STATE[symbol]["short_tp1"] and
-            net_ok(pnl_short - FEE_EST)
-        ):
-            close_short(symbol, fix_qty(symbol, short_amt * 0.25))
-            TP_STATE[symbol]["short_tp1"] = True
-            print(symbol, "SHORT TP1 NETO")
-            return True
-
-        if (
-            roi_short >= TP2_ROI and
-            not TP_STATE[symbol]["short_tp2"] and
-            net_ok(pnl_short - FEE_EST)
-        ):
-            close_short(symbol, fix_qty(symbol, short_amt * 0.50))
-            TP_STATE[symbol]["short_tp2"] = True
-            print(symbol, "SHORT TP2 NETO")
-            return True
-
-        if (
-            peak >= TP3_ARM and
-            roi_short <= peak * TRAIL_BACK and
-            net_ok(pnl_short - FEE_EST)
-        ):
-            close_short(symbol, fix_qty(symbol, short_amt))
-            print(symbol, "SHORT TRAIL PROFIT")
-            reset_side(symbol, "short")
-            return True
-
-    else:
-        reset_side(symbol, "short")
-
-    return False
-
-# ============================================================
-# STATS
-# ============================================================
-
-@app.route("/stats")
-def stats():
-
-    total = max(collection.count_documents({}) - 1, 0)
-
-    pipeline = [
-        {"$unwind": "$transacciones"},
-        {"$group": {
-            "_id": None,
-            "total": {"$sum": "$transacciones.monto"}
-        }}
-    ]
-
-    result = list(collection.aggregate(pipeline))
-
-    supply = result[0]["total"] if result else 0
+    w = wallets.find_one({"uid": session["uid"]})
 
     return jsonify({
-        "bloques": total,
-        "supply": round(float(supply), 4),
-        "reward": recompensa_actual(),
-        "dificultad": DIFICULTAD
+        "address": w["address"],
+        "chorox": get_chorox(w["address"])
     })
 
-
 # ============================================================
-# BALANCE API
+# MINAR CHC
 # ============================================================
-
-@app.route("/balance/<wallet>")
-def balance(wallet):
-
-    return jsonify({
-        "wallet": wallet,
-        "balance": balance_calc(wallet)
-    })
-
-
-# ============================================================
-# MINAR
-# ============================================================
-
 @app.route("/minar", methods=["POST"])
 def minar():
-
-    data = request.get_json(force=True)
-
-    wallet = str(data.get("wallet", "")).strip()
-    nonce = str(data.get("nonce", "")).strip()
+    data = request.json
+    wallet = data.get("wallet")
+    nonce = data.get("nonce")
 
     if not wallet or not nonce:
-        return jsonify({"error": "faltan datos"}), 400
+        return jsonify({"error": "missing"}), 400
 
-    ahora = time.time()
+    h = hashlib.sha256(f"{wallet}{nonce}".encode()).hexdigest()
 
-    if wallet in ULTIMO_MINADO:
-        if ahora - ULTIMO_MINADO[wallet] < 2:
-            return jsonify({"error": "espera"}), 429
+    if not h.startswith("0000"):
+        return jsonify({"error": "invalid"}), 400
 
-    prueba = hashlib.sha256(
-        f"{wallet}{nonce}".encode()
-    ).hexdigest()
+    last = chain.find_one(sort=[("index", -1)]) or {"index": 0}
 
-    if not prueba.startswith("0" * DIFICULTAD):
-        return jsonify({"error": "hash invalido"}), 400
-
-    ultimo = collection.find_one(sort=[("indice", -1)])
-
-    nuevo = {
-        "indice": ultimo["indice"] + 1,
-        "timestamp": ahora,
-        "transacciones": [{
-            "emisor": "RED",
-            "receptor": wallet,
-            "monto": recompensa_actual()
-        }],
-        "nonce": nonce,
-        "hash_anterior": ultimo["hash"]
+    block = {
+        "index": last["index"] + 1,
+        "time": time.time(),
+        "tx": [{"to": wallet, "amount": 10}]
     }
 
-    nuevo["hash"] = calcular_hash(nuevo)
+    block["hash"] = hash_block(block)
+    chain.insert_one(block)
 
-    collection.insert_one(nuevo)
-
-    ULTIMO_MINADO[wallet] = ahora
-
-    return jsonify({
-        "ok": True,
-        "bloque": nuevo["indice"]
-    })
-
+    return jsonify({"ok": True})
 
 # ============================================================
-# EXPLORER
+# CLAIM BONUS CHOROX
 # ============================================================
+@app.route("/claim", methods=["POST"])
+def claim():
+    wallet = request.json.get("wallet")
+    now = datetime.utcnow()
 
-@app.route("/cadena")
-def cadena():
+    row = claims.find_one({"wallet": wallet})
 
-    datos = list(
-        collection.find({}, {"_id": 0})
-        .sort("indice", DESCENDING)
-        .limit(50)
+    if row and now < row["next"]:
+        return jsonify({"error": "cooldown"}), 429
+
+    # SEND REAL TOKEN
+    if PRIVATE_KEY:
+        nonce = w3.eth.get_transaction_count(ADMIN)
+        tx = token.functions.transfer(
+            wallet,
+            int(100 * 10**18)
+        ).build_transaction({
+            "from": ADMIN,
+            "nonce": nonce,
+            "gas": 120000,
+            "gasPrice": w3.to_wei("3", "gwei")
+        })
+
+        signed = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
+        w3.eth.send_raw_transaction(signed.raw_transaction)
+
+    claims.update_one(
+        {"wallet": wallet},
+        {"$set": {"next": now + timedelta(hours=24)}},
+        upsert=True
     )
 
-    return jsonify(datos)
-
-
-@app.route("/scan")
-def scan():
-    return """
-    <html>
-    <body style='background:#000;color:#0f0;
-    font-family:monospace;padding:20px'>
-
-    <h1>⛓ CHC Explorer</h1>
-
-    <p>Usa /cadena para ver bloques JSON</p>
-
-    <a href='/cadena' style='color:cyan'>Abrir cadena</a>
-
-    </body>
-    </html>
-    """
-
+    return jsonify({"ok": True})
 
 # ============================================================
-# PRICES
+# SWAP CHC -> CHOROX
 # ============================================================
+@app.route("/swap", methods=["POST"])
+def swap():
 
-@app.route("/prices")
-def prices():
+    uid = session.get("uid")
+    data = request.json
 
-    pares = ["BTCUSDT", "ETHUSDT", "XRPUSDT", "WLDUSDT"]
+    amount = float(data.get("amount", 0))
+    to = data.get("to")
 
-    out = {}
+    if not uid:
+        return jsonify({"error": "no session"}), 403
 
-    for p in pares:
-        try:
-            r = requests.get(
-                "https://api.binance.com/api/v3/ticker/price",
-                params={"symbol": p},
-                timeout=10
-            ).json()
+    user = wallets.find_one({"uid": uid})
+    if not user:
+        return jsonify({"error": "no wallet"}), 404
 
-            out[p] = r["price"]
+    mined = chc_balance(user["address"])
+    used = user.get("chc_swapped", 0)
 
-        except:
-            out[p] = "error"
+    if amount > (mined - used):
+        return jsonify({"error": "insufficient"}), 400
 
-    return jsonify(out)
+    # mark used
+    wallets.update_one(
+        {"uid": uid},
+        {"$inc": {"chc_swapped": amount}}
+    )
 
+    # send CHOROX
+    if PRIVATE_KEY:
+        gross = amount / 100
+        fee = gross * 0.01
+        send = gross - fee
+
+        nonce = w3.eth.get_transaction_count(ADMIN)
+
+        tx = token.functions.transfer(
+            to,
+            int(send * 10**18)
+        ).build_transaction({
+            "from": ADMIN,
+            "nonce": nonce,
+            "gas": 120000,
+            "gasPrice": w3.to_wei("3", "gwei")
+        })
+
+        signed = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
+        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+
+    swaps.insert_one({
+        "uid": uid,
+        "amount_chc": amount,
+        "to": to,
+        "time": time.time()
+    })
+
+    return jsonify({"ok": True})
 
 # ============================================================
-# TEST
+# BALANCE
 # ============================================================
+@app.route("/balance/<wallet>")
+def balance(wallet):
+    return jsonify({"chc": chc_balance(wallet)})
 
-@app.route("/test")
-def test():
-    return "ok"
-
+# ============================================================
+# CHAIN
+# ============================================================
+@app.route("/chain")
+def get_chain():
+    data = list(chain.find({}, {"_id": 0}).sort("index", -1).limit(50))
+    return jsonify(data)
 
 # ============================================================
 # START
 # ============================================================
-
 if __name__ == "__main__":
-    crear_genesis()
-    app.run(host="0.0.0.0", port=PORT)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
