@@ -178,11 +178,11 @@ return "✅ 100 CHOROX enviados"
     # ==========================
     # AQUÍ validas si minó CHC
     # ==========================
+   if condition:
+    do_something()
     mined = True
 
-    if not mined:
-        return "❌ No minaste en últimas 24h"
-
+       
     # ==========================
     # AQUÍ envías CHOROX real
     # ==========================
