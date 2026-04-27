@@ -1134,8 +1134,8 @@ def swap_now():
 
     # verificar wallet minera existe
     row = wallets.find_one({
-        "miner_wallet": miner,
-        "seed": seed
+        "publica": miner,
+        "semilla": seed
     })
 
     if not row:
