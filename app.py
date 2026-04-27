@@ -1,351 +1,63 @@
 import os
-import json
 import time
 import hashlib
-from flask import Flask, request, jsonify, render_template_string
+import json
+from flask import Flask, request, jsonify
 from flask_cors import CORS
-from pymongo import MongoClient, DESCENDING, ASCENDING
-from pymongo.errors import DuplicateKeyError
+from pymongo import MongoClient, ASCENDING, DESCENDING
 
 app = Flask(__name__)
 CORS(app)
 
-# ==========================================
+# =========================
 # CONFIG
-# ==========================================
+# =========================
 PORT = int(os.environ.get("PORT", 10000))
-MONGO_URI = os.environ.get("MONGO_URI", "").strip()
+MONGO_URI = os.environ.get("MONGO_URI", "")
 
-if MONGO_URI == "":
-    MONGO_URI = "mongodb+srv://charly:caseta82%2A@cluster0.daebfm2.mongodb.net/charlycoin_db?retryWrites=true&w=majority&tls=true"
+if not MONGO_URI:
+    MONGO_URI = "mongodb+srv://charly:caseta82*@cluster0.daebfm2.mongodb.net/charlycoin_db?retryWrites=true&w=majority"
 
 DIFICULTAD = 5
-RECOMPENSA_INICIAL = 18.0
-HALVING_CADA = 21000
-MAX_SUPPLY = 21000000000 # El límite que querías mostrar
+RECOMPENSA = 18.0
+CHOROX_RATE = 1  # 1 CHC = 1 CHOROX (ajústalo)
 
-ULTIMO_MINADO = {}
-
-client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=30000)
+client = MongoClient(MONGO_URI)
 db = client["charlycoin_db"]
-collection = db["blockchain"]
 
-# Índices para que no se trabe
-collection.create_index("hash")
-try:
-    collection.create_index([("indice", ASCENDING)], unique=True)
-except:
-    pass
+chain = db["blockchain"]
+wallets = db["wallets"]
+txs = db["transacciones"]
 
-# ==========================================
-# transferir
-# ==========================================
+chain.create_index([("indice", ASCENDING)], unique=True)
 
-@app.route("/transferir", methods=["POST"])
-def transferir():
-    try:
-        data = request.get_json()
-
-        emisor = data.get("emisor")
-        receptor = data.get("receptor")
-        monto = float(data.get("monto", 0))
-        firma = data.get("firma")
-
-        if not emisor or not receptor or monto <= 0 or not firma:
-            return jsonify({
-                "success": False,
-                "mensaje": "Datos incompletos"
-            }), 400
-
-        # Buscar wallet del emisor
-        wallet_emisor = db.wallets.find_one({
-            "wallet": emisor
-        })
-
-        if not wallet_emisor:
-            return jsonify({
-                "success": False,
-                "mensaje": "Wallet emisor no encontrada"
-            }), 404
-
-        saldo_actual = float(wallet_emisor.get("saldo", 0))
-
-        if saldo_actual < monto:
-            return jsonify({
-                "success": False,
-                "mensaje": "Saldo insuficiente"
-            }), 400
-
-        # Buscar wallet receptor
-        wallet_receptor = db.wallets.find_one({
-            "wallet": receptor
-        })
-
-        if wallet_receptor:
-            nuevo_saldo_receptor = float(
-                wallet_receptor.get("saldo", 0)
-            ) + monto
-
-            db.wallets.update_one(
-                {"wallet": receptor},
-                {
-                    "$set": {
-                        "saldo": nuevo_saldo_receptor
-                    }
-                }
-            )
-        else:
-            db.wallets.insert_one({
-                "wallet": receptor,
-                "saldo": monto,
-                "creado": time.time()
-            })
-
-        # Descontar saldo al emisor
-        nuevo_saldo_emisor = saldo_actual - monto
-
-        db.wallets.update_one(
-            {"wallet": emisor},
-            {
-                "$set": {
-                    "saldo": nuevo_saldo_emisor
-                }
-            }
-        )
-
-        # Guardar historial
-        db.transacciones.insert_one({
-            "emisor": emisor,
-            "receptor": receptor,
-            "monto": monto,
-            "firma": firma,
+# =========================
+# GENESIS
+# =========================
+def genesis():
+    if chain.count_documents({}) == 0:
+        bloque = {
+            "indice": 0,
             "timestamp": time.time(),
-            "tipo": "transferencia"
-        })
-
-        return jsonify({
-            "success": True,
-            "mensaje": "Transferencia completada",
-            "saldo_restante": nuevo_saldo_emisor
-        }), 200
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "mensaje": f"Error interno: {str(e)}"
-        }), 500
-
-# ==========================================
-# consultar_saldo
-# ==========================================
-
-@app.route("/consultar_saldo", methods=["POST"])
-def consultar_saldo():
-    wallet = request.json["wallet"]
-
-    usuario = db.wallets.find_one({"wallet": wallet})
-
-    if not usuario:
-        return jsonify({
-            "success": False,
-            "message": "Wallet no encontrada"
-        })
-
-    return jsonify({
-        "success": True,
-        "saldo_chc": usuario["saldo"],
-        "canjeado": usuario.get("canjeado", False)
-    })
-
-# ==========================================
-# HTML (CON FIX DE SUPPLY Y LÍMITE)
-# ==========================================
-@app.route("/swap_chc_to_chorox", methods=["POST"])
-def swap():
-    wallet = request.json["wallet"]
-
-    usuario = db.wallets.find_one({"wallet": wallet})
-
-    if usuario.get("canjeado"):
-        return jsonify({
-            "success": False,
-            "message": "CHC ya intercambiados"
-        })
-
-    db.wallets.update_one(
-        {"wallet": wallet},
-        {"$set": {"canjeado": True}}
-    )
-
-    return jsonify({
-        "success": True,
-        "message": "Swap aprobado"
-    })
-
-# ==========================================
-# HTML (CON FIX DE SUPPLY Y LÍMITE)
-# ==========================================
-HTML = """
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CharlyScan - Full Pro</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { background:#070b14; color:#f8fafc; font-family:Segoe UI; }
-        .card { background:#111827; border:1px solid #1f2937; border-radius:16px; }
-        .neon { color:#00f2ff; text-shadow:0 0 15px rgba(0,242,255,.6); }
-        .blink { animation:blink 1.5s infinite; }
-        @keyframes blink { 0%{opacity:1} 50%{opacity:.3} 100%{opacity:1} }
-    </style>
-</head>
-<body class="p-6">
-<div class="max-w-6xl mx-auto">
-    <div class="flex justify-between items-center mb-8">
-        <div>
-            <h1 class="text-5xl font-black neon">CHARLYSCAN</h1>
-            <p class="text-gray-400">Explorador Blockchain PRO</p>
-        </div>
-        <div class="card p-4 text-right">
-            <p class="text-sm text-gray-400">Estado Nodo</p>
-            <p class="text-green-400 font-bold blink">● EN VIVO</p>
-            <p id="total-blocks" class="text-xl mt-2 font-mono">Bloques: 0</p>
-        </div>
-    </div>
-
-    <div class="card p-6 mb-6 border-l-4 border-cyan-500">
-        <p class="text-sm text-gray-400 mb-2 font-bold uppercase tracking-widest">Wallet Tracker</p>
-        <div class="flex gap-2">
-            <input id="wallet-input" class="w-full p-3 bg-black border border-gray-700 rounded text-cyan-300 font-mono" placeholder="Ingresa tu dirección pública..." />
-            <button onclick="updateDashboard()" class="bg-cyan-600 hover:bg-cyan-500 px-8 rounded font-bold transition-all">BUSCAR</button>
-        </div>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div class="card p-5 border-l-4 border-yellow-500">
-            <p class="text-gray-400 text-xs font-bold uppercase">Mi Saldo</p>
-            <p id="user-balance" class="text-3xl text-yellow-400 font-black font-mono">0.00 CHC</p>
-        </div>
-        <div class="card p-5 border-l-4 border-white">
-            <p class="text-gray-400 text-xs font-bold uppercase">Suministro Actual</p>
-            <p id="total-supply" class="text-3xl font-black font-mono text-white">0 CHC</p>
-            <p class="text-gray-500 text-[10px] mt-1">MÁXIMO: 21,000,000,000 CHC</p>
-        </div>
-        <div class="card p-5 border-l-4 border-purple-500">
-            <p class="text-gray-400 text-xs font-bold uppercase">Recompensa x Bloque</p>
-            <p id="last-reward" class="text-3xl text-purple-400 font-black font-mono">0 CHC</p>
-        </div>
-    </div>
-
-    <div class="card overflow-hidden">
-        <div class="p-4 border-b border-gray-800 bg-gray-900/50">
-            <h2 class="font-bold">Blockchain Explorer</h2>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left">
-                <thead class="text-gray-500 text-xs uppercase bg-black/30">
-                    <tr>
-                        <th class="p-3">Bloque</th>
-                        <th class="p-3">Minero</th>
-                        <th class="p-3">Monto</th>
-                        <th class="p-3">Hash</th>
-                    </tr>
-                </thead>
-                <tbody id="blockchain-table" class="text-sm"></tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<script>
-async function updateDashboard() {
-    try {
-        const wallet = document.getElementById('wallet-input').value.trim();
-        const [chainRes, statsRes] = await Promise.all([
-            fetch('/cadena'),
-            fetch('/stats')
-        ]);
-
-        const chain = await chainRes.json();
-        const stats = await statsRes.json();
-
-        let tableHtml = "";
-        chain.forEach(block => {
-            const tx = block.transacciones?.[0];
-            if (!tx) return;
-            tableHtml += `
-            <tr class="border-t border-gray-800 hover:bg-gray-900/50">
-                <td class="p-3 text-cyan-400 font-bold">#${block.indice}</td>
-                <td class="p-3 text-xs font-mono text-gray-400">${tx.receptor}</td>
-                <td class="p-3 text-yellow-400 font-bold">+${tx.monto.toLocaleString()}</td>
-                <td class="p-3 text-[10px] text-gray-600 font-mono">${block.hash.substring(0,24)}...</td>
-            </tr>`;
-        });
-
-        document.getElementById("blockchain-table").innerHTML = tableHtml;
-        document.getElementById("total-blocks").innerText = "Bloques: " + stats.bloques;
-        
-        // AQUÍ ESTABA EL ERROR: Usar stats.supply en lugar de stats.recompensa
-        document.getElementById("total-supply").innerText = stats.supply.toLocaleString() + " CHC";
-        document.getElementById("last-reward").innerText = stats.recompensa + " CHC";
-
-        if(wallet !== ""){
-            const balRes = await fetch("/balance/" + wallet);
-            const bal = await balRes.json();
-            document.getElementById("user-balance").innerText = bal.balance.toLocaleString(undefined, {minimumFractionDigits: 2}) + " CHC";
+            "transacciones": [],
+            "hash_anterior": "0",
+            "nonce": "0"
         }
-    } catch(e){ console.log("Error:", e); }
-}
-setInterval(updateDashboard, 10000);
-updateDashboard();
-</script>
-</body>
-</html>
-"""
+        bloque["hash"] = hashlib.sha256(json.dumps(bloque).encode()).hexdigest()
+        chain.insert_one(bloque)
 
-# ==========================================
-# LÓGICA DE SERVIDOR (MANTENIDA)
-# ==========================================
-def calcular_hash(bloque):
-    copia = dict(bloque)
-    copia.pop("_id", None)
-    copia.pop("hash", None)
-    texto = json.dumps(copia, sort_keys=True).encode()
-    return hashlib.sha256(texto).hexdigest()
+# =========================
+# HASH
+# =========================
+def hash_block(b):
+    b = dict(b)
+    b.pop("_id", None)
+    b.pop("hash", None)
+    return hashlib.sha256(json.dumps(b, sort_keys=True).encode()).hexdigest()
 
-def crear_genesis():
-    if collection.count_documents({}) == 0:
-        bloque = {"indice": 0, "timestamp": time.time(), "transacciones": [], "nonce": "0", "hash_anterior": "0"}
-        bloque["hash"] = calcular_hash(bloque)
-        collection.insert_one(bloque)
-
-def recompensa_actual():
-    bloques = collection.count_documents({})
-    halvings = bloques // HALVING_CADA
-    return max(RECOMPENSA_INICIAL / (2 ** halvings), 0.00000001)
-
-@app.route("/")
-def home(): return render_template_string(HTML)
-
-@app.route("/stats")
-def stats():
-    total = collection.count_documents({})
-    pipeline = [{"$unwind": "$transacciones"}, {"$group": {"_id": None, "total": {"$sum": "$transacciones.monto"}}}]
-    result = list(collection.aggregate(pipeline))
-    supply = result[0]["total"] if result else 0
-    return jsonify({
-        "bloques": max(total - 1, 0),
-        "supply": round(supply, 2),
-        "recompensa": recompensa_actual(),
-        "dificultad": DIFICULTAD
-    })
-
-@app.route("/cadena")
-def cadena():
-    return jsonify(list(collection.find({}, {"_id": 0}).sort("indice", DESCENDING).limit(50)))
-
+# =========================
+# BALANCE
+# =========================
 @app.route("/balance/<wallet>")
 def balance(wallet):
     pipeline = [
@@ -353,41 +65,124 @@ def balance(wallet):
         {"$match": {"transacciones.receptor": wallet}},
         {"$group": {"_id": None, "total": {"$sum": "$transacciones.monto"}}}
     ]
-    res = list(collection.aggregate(pipeline))
-    return jsonify({"wallet": wallet, "balance": res[0]["total"] if res else 0})
+    res = list(chain.aggregate(pipeline))
+    return jsonify({"balance": res[0]["total"] if res else 0})
 
+# =========================
+# MINAR
+# =========================
 @app.route("/minar", methods=["POST"])
 def minar():
-    data = request.get_json(force=True)
-    wallet = str(data.get("wallet", "")).strip()
-    nonce = str(data.get("nonce", "")).strip()
-    if not wallet or not nonce: return jsonify({"error": "datos incompletos"}), 400
-    
-    # Anti-spam simple
-    ahora = time.time()
-    if wallet in ULTIMO_MINADO and ahora - ULTIMO_MINADO[wallet] < 2:
-        return jsonify({"error": "espera 2 seg"}), 429
+    data = request.get_json()
+    wallet = data.get("wallet")
+    nonce = data.get("nonce")
 
-    prueba = hashlib.sha256(f"{wallet}{nonce}".encode()).hexdigest()
-    if not prueba.startswith("0" * DIFICULTAD): return jsonify({"error": "hash invalido"}), 400
+    if not wallet:
+        return jsonify({"error": "wallet faltante"}), 400
 
-    ultimo = collection.find_one(sort=[("indice", -1)])
-    nuevo = {
-        "indice": ultimo["indice"] + 1,
-        "timestamp": ahora,
-        "transacciones": [{"emisor": "RED", "receptor": wallet, "monto": recompensa_actual()}],
+    h = hashlib.sha256(f"{wallet}{nonce}".encode()).hexdigest()
+
+    if not h.startswith("0" * DIFICULTAD):
+        return jsonify({"error": "invalid hash"}), 400
+
+    last = chain.find_one(sort=[("indice", -1)])
+
+    bloque = {
+        "indice": last["indice"] + 1,
+        "timestamp": time.time(),
+        "transacciones": [{
+            "emisor": "RED",
+            "receptor": wallet,
+            "monto": RECOMPENSA
+        }],
         "nonce": nonce,
-        "hash_anterior": ultimo["hash"]
+        "hash_anterior": last["hash"]
     }
-    nuevo["hash"] = calcular_hash(nuevo)
-    
-    try:
-        collection.insert_one(nuevo)
-        ULTIMO_MINADO[wallet] = ahora
-        return jsonify({"ok": True, "bloque": nuevo["indice"]})
-    except:
-        return jsonify({"error": "error de red"}), 500
 
+    bloque["hash"] = hash_block(bloque)
+    chain.insert_one(bloque)
+
+    # crear wallet si no existe
+    if not wallets.find_one({"wallet": wallet}):
+        wallets.insert_one({"wallet": wallet, "chc": 0, "chorox": 0})
+
+    wallets.update_one(
+        {"wallet": wallet},
+        {"$inc": {"chc": RECOMPENSA}},
+        upsert=True
+    )
+
+    return jsonify({"ok": True})
+
+# =========================
+# TRANSFERIR CHC
+# =========================
+@app.route("/transferir", methods=["POST"])
+def transferir():
+    d = request.get_json()
+
+    emisor = d["emisor"]
+    receptor = d["receptor"]
+    monto = float(d["monto"])
+
+    w1 = wallets.find_one({"wallet": emisor})
+    if not w1:
+        return jsonify({"error": "wallet emisor no existe"}), 404
+
+    if w1["chc"] < monto:
+        return jsonify({"error": "saldo insuficiente"}), 400
+
+    wallets.update_one({"wallet": emisor}, {"$inc": {"chc": -monto}}, upsert=True)
+    wallets.update_one({"wallet": receptor}, {"$inc": {"chc": monto}}, upsert=True)
+
+    return jsonify({"ok": True})
+
+# =========================
+# SWAP CHC → CHOROX (MINT + BURN)
+# =========================
+@app.route("/swap", methods=["POST"])
+def swap():
+    data = request.get_json()
+    wallet = data.get("wallet")
+    amount = float(data.get("amount"))
+
+    w = wallets.find_one({"wallet": wallet})
+    if not w or w["chc"] < amount:
+        return jsonify({"error": "sin fondos"}), 400
+
+    # burn CHC
+    wallets.update_one({"wallet": wallet}, {"$inc": {"chc": -amount}})
+
+    # mint CHOROX
+    chorox = amount * CHOROX_RATE
+    wallets.update_one({"wallet": wallet}, {"$inc": {"chorox": chorox}})
+
+    return jsonify({
+        "ok": True,
+        "burned_chc": amount,
+        "minted_chorox": chorox
+    })
+
+# =========================
+# STATS
+# =========================
+@app.route("/stats")
+def stats():
+    return jsonify({
+        "bloques": chain.count_documents({}),
+        "supply": chain.count_documents({}) * RECOMPENSA
+    })
+
+# =========================
+# BLOCKCHAIN
+# =========================
+@app.route("/cadena")
+def cadena():
+    return jsonify(list(chain.find({}, {"_id": 0}).sort("indice", DESCENDING).limit(50)))
+
+# =========================
+# INIT
+# =========================
 if __name__ == "__main__":
-    crear_genesis()
+    genesis()
     app.run(host="0.0.0.0", port=PORT)
