@@ -63,10 +63,6 @@ from datetime import datetime, timedelta
 def claim_bonus():
 
     wallet = request.form["wallet"].strip().lower()
-
-    if not wallet:
-        return "❌ Wallet vacía"
-
     now = datetime.utcnow()
 
     row = claims.find_one({"wallet": wallet})
@@ -76,11 +72,22 @@ def claim_bonus():
         next_time = last + timedelta(hours=24)
 
         if now < next_time:
-            faltan = next_time - now
-            horas = int(faltan.total_seconds() // 3600)
-            minutos = int((faltan.total_seconds() % 3600) // 60)
-            return f"⏳ Espera {horas}h {minutos}m"
+            return "⏳ Aún no disponible"
 
+    # aquí va el pago real
+    try:
+        tx = send_chorox(wallet, 100)
+
+        claims.update_one(
+            {"wallet": wallet},
+            {"$set": {"last_claim": now}},
+            upsert=True
+        )
+
+        return f"✅ 100 CHOROX enviados TX: {tx}"
+
+    except Exception as e:
+        return f"❌ Error envío {str(e)}"
     # =========================
     # Validar si minó CHC hoy
     # =========================
