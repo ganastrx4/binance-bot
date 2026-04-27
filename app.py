@@ -36,6 +36,105 @@ try:
     collection.create_index([("indice", ASCENDING)], unique=True)
 except:
     pass
+
+# ==========================================
+# transferir
+# ==========================================
+
+@app.route("/transferir", methods=["POST"])
+def transferir():
+    try:
+        data = request.get_json()
+
+        emisor = data.get("emisor")
+        receptor = data.get("receptor")
+        monto = float(data.get("monto", 0))
+        firma = data.get("firma")
+
+        if not emisor or not receptor or monto <= 0 or not firma:
+            return jsonify({
+                "success": False,
+                "mensaje": "Datos incompletos"
+            }), 400
+
+        # Buscar wallet del emisor
+        wallet_emisor = db.wallets.find_one({
+            "wallet": emisor
+        })
+
+        if not wallet_emisor:
+            return jsonify({
+                "success": False,
+                "mensaje": "Wallet emisor no encontrada"
+            }), 404
+
+        saldo_actual = float(wallet_emisor.get("saldo", 0))
+
+        if saldo_actual < monto:
+            return jsonify({
+                "success": False,
+                "mensaje": "Saldo insuficiente"
+            }), 400
+
+        # Buscar wallet receptor
+        wallet_receptor = db.wallets.find_one({
+            "wallet": receptor
+        })
+
+        if wallet_receptor:
+            nuevo_saldo_receptor = float(
+                wallet_receptor.get("saldo", 0)
+            ) + monto
+
+            db.wallets.update_one(
+                {"wallet": receptor},
+                {
+                    "$set": {
+                        "saldo": nuevo_saldo_receptor
+                    }
+                }
+            )
+        else:
+            db.wallets.insert_one({
+                "wallet": receptor,
+                "saldo": monto,
+                "creado": time.time()
+            })
+
+        # Descontar saldo al emisor
+        nuevo_saldo_emisor = saldo_actual - monto
+
+        db.wallets.update_one(
+            {"wallet": emisor},
+            {
+                "$set": {
+                    "saldo": nuevo_saldo_emisor
+                }
+            }
+        )
+
+        # Guardar historial
+        db.transacciones.insert_one({
+            "emisor": emisor,
+            "receptor": receptor,
+            "monto": monto,
+            "firma": firma,
+            "timestamp": time.time(),
+            "tipo": "transferencia"
+        })
+
+        return jsonify({
+            "success": True,
+            "mensaje": "Transferencia completada",
+            "saldo_restante": nuevo_saldo_emisor
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "mensaje": f"Error interno: {str(e)}"
+        }), 500
+
 # ==========================================
 # consultar_saldo
 # ==========================================
