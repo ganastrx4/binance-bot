@@ -1122,19 +1122,15 @@ def swap():
 def swap_now():
 
     def clean_seed(txt):
-    txt = txt.strip().lower()
-    txt = unicodedata.normalize("NFC", txt)
-    txt = " ".join(txt.split())
-    return txt
-    
+        txt = txt.strip().lower()
+        txt = unicodedata.normalize("NFC", txt)
+        txt = " ".join(txt.split())
+        return txt
+
     miner = request.form["miner"].strip().lower()
     seed = clean_seed(request.form["seed"])
     amount = float(request.form["amount"])
     to = request.form["to"].strip()
-   
-    
-
-
 
     # verificar wallet minera existe
     row = wallets.find_one({
@@ -1148,8 +1144,7 @@ def swap_now():
     # calcular saldo real
     bal = balance_calc(miner)
 
-    used = row.get("chc_swapped",0)
-
+    used = row.get("chc_swapped", 0)
     available = bal - used
 
     if amount > available:
@@ -1158,7 +1153,7 @@ def swap_now():
     # marcar usados
     wallets.update_one(
         {"_id": row["_id"]},
-        {"$inc":{"chc_swapped": amount}}
+        {"$inc": {"chc_swapped": amount}}
     )
 
     # enviar CHOROX real
