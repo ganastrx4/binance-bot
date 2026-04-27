@@ -36,6 +36,52 @@ try:
     collection.create_index([("indice", ASCENDING)], unique=True)
 except:
     pass
+# ==========================================
+# consultar_saldo
+# ==========================================
+
+@app.route("/consultar_saldo", methods=["POST"])
+def consultar_saldo():
+    wallet = request.json["wallet"]
+
+    usuario = db.wallets.find_one({"wallet": wallet})
+
+    if not usuario:
+        return jsonify({
+            "success": False,
+            "message": "Wallet no encontrada"
+        })
+
+    return jsonify({
+        "success": True,
+        "saldo_chc": usuario["saldo"],
+        "canjeado": usuario.get("canjeado", False)
+    })
+
+# ==========================================
+# HTML (CON FIX DE SUPPLY Y LÍMITE)
+# ==========================================
+@app.route("/swap_chc_to_chorox", methods=["POST"])
+def swap():
+    wallet = request.json["wallet"]
+
+    usuario = db.wallets.find_one({"wallet": wallet})
+
+    if usuario.get("canjeado"):
+        return jsonify({
+            "success": False,
+            "message": "CHC ya intercambiados"
+        })
+
+    db.wallets.update_one(
+        {"wallet": wallet},
+        {"$set": {"canjeado": True}}
+    )
+
+    return jsonify({
+        "success": True,
+        "message": "Swap aprobado"
+    })
 
 # ==========================================
 # HTML (CON FIX DE SUPPLY Y LÍMITE)
