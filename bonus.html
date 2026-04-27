@@ -1,130 +1,172 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>CHOROX GIFT</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CHOROX Migration</title>
 <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
 
 <style>
 body{
-background:#050816;
-color:white;
-font-family:Arial;
-text-align:center;
-padding:40px;
+  background:#050816;
+  color:white;
+  font-family:Arial;
+  text-align:center;
+  padding:40px;
 }
-
 .box{
-max-width:500px;
-margin:auto;
-background:#0f172a;
-padding:25px;
-border-radius:20px;
-border:1px solid #1e293b;
+  max-width:650px;
+  margin:auto;
+  background:#0f172a;
+  padding:28px;
+  border-radius:20px;
+  border:1px solid #1e293b;
 }
-
 input{
-width:100%;
-padding:15px;
-margin:10px 0;
-border-radius:12px;
-border:none;
-background:#111827;
-color:white;
+  width:100%;
+  padding:14px;
+  margin:10px 0;
+  border-radius:12px;
+  border:none;
+  background:#111827;
+  color:white;
 }
-
 button{
-width:100%;
-padding:15px;
-border:none;
-border-radius:12px;
-background:#22c55e;
-color:white;
-font-weight:900;
-cursor:pointer;
+  width:100%;
+  padding:15px;
+  border:none;
+  border-radius:12px;
+  background:#22c55e;
+  color:white;
+  font-weight:900;
+  cursor:pointer;
+  margin-top:10px;
+}
+.notice{
+  background:#111827;
+  padding:16px;
+  border-radius:14px;
+  margin:18px 0;
+  text-align:left;
+  line-height:1.6;
+}
+.small{
+  font-size:14px;
+  opacity:.9;
 }
 </style>
 </head>
-
 <body>
 
 <div class="box">
 
-<h1>🎁 CHOROX GIFT</h1>
+<h1>🎁 CHOROX MIGRATION</h1>
+<p>Convierte tus CHC minados a <b>CHOROX (BSC)</b></p>
 
-<button onclick="connect()">🔗 Conectar MetaMask</button>
-
+<button onclick="connect()">🔗 Conectar MetaMask (BSC)</button>
 <p id="wallet">No conectado</p>
 
-<input id="to" placeholder="Wallet destino">
-<input id="amount" placeholder="Cantidad CHOROX">
+<div class="notice">
+<b>Importante:</b><br>
+• Aquí NO envías CHOROX, aquí lo RECIBES.<br>
+• Tus CHC minados serán verificados una sola vez.<br>
+• Después del cambio no podrán volver a convertirse.<br>
+• Guarda bien tu Seed Phrase y tu archivo JSON.<br><br>
+🎉 Los primeros minadores podrán recibir hasta <b>1000 CHOROX</b>.
+Conforme más usuarios migren, entrará oferta y demanda.
+</div>
 
-<button onclick="send()">ENVIAR</button>
+<input id="receiver" placeholder="Tu wallet BSC donde recibirás CHOROX" />
+<input id="chcAmount" placeholder="Cantidad CHC a convertir" />
+
+<button onclick="claimSwap()">RECIBIR CHOROX</button>
+<button onclick="downloadWallet()">DESCARGAR WALLET JSON</button>
 
 <p id="status"></p>
 
 </div>
 
 <script>
-
 let web3;
 let account;
 
-const TOKEN = "0x15681A8E9a8dF14946A4F852822B709e37b70c4E";
-
-const ABI = [
-{
-"constant":false,
-"inputs":[
-{"name":"_to","type":"address"},
-{"name":"_value","type":"uint256"}
-],
-"name":"transfer",
-"type":"function"
-}
-];
+const CHOROX_TOKEN = "0x15681A8E9a8dF14946A4F852822B709e37b70c4E";
+const NODE_API = "https://binance-bot-hna7.onrender.com";
 
 async function connect(){
+  if(!window.ethereum){
+    alert("Instala MetaMask");
+    return;
+  }
 
-if(window.ethereum){
-web3 = new Web3(window.ethereum);
-await window.ethereum.request({ method: "eth_requestAccounts" });
+  web3 = new Web3(window.ethereum);
 
-const accounts = await web3.eth.getAccounts();
-account = accounts[0];
+  await window.ethereum.request({
+    method: "wallet_switchEthereumChain",
+    params: [{ chainId: "0x38" }]
+  }).catch(()=>{});
 
-document.getElementById("wallet").innerText = account;
+  await window.ethereum.request({ method:"eth_requestAccounts" });
+  const accounts = await web3.eth.getAccounts();
+  account = accounts[0];
 
-}else{
-alert("Instala MetaMask");
+  document.getElementById("wallet").innerText = "Wallet BSC: " + account;
 }
 
+async function claimSwap(){
+  const receiver = document.getElementById("receiver").value.trim();
+  const amount = document.getElementById("chcAmount").value.trim();
+
+  if(!receiver || !amount){
+    alert("Completa los datos");
+    return;
+  }
+
+  document.getElementById("status").innerText = "Verificando CHC minados...";
+
+  try{
+    const r = await fetch(`${NODE_API}/swap_chc_to_chorox`, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        chc_wallet: account,
+        bsc_receiver: receiver,
+        amount: amount
+      })
+    });
+
+    const data = await r.json();
+
+    if(data.success){
+      document.getElementById("status").innerText = "✅ CHOROX enviado correctamente";
+    }else{
+      document.getElementById("status").innerText = "❌ " + (data.message || "No autorizado");
+    }
+
+  }catch(e){
+    console.log(e);
+    document.getElementById("status").innerText = "❌ Error de conexión";
+  }
 }
 
-async function send(){
+function downloadWallet(){
+  if(!account){
+    alert("Primero conecta MetaMask");
+    return;
+  }
 
-let to = document.getElementById("to").value;
-let amount = document.getElementById("amount").value;
+  const walletData = {
+    red: "BSC",
+    wallet_publica: account,
+    nota: "Guarda este archivo junto con tu Seed Phrase de MetaMask"
+  };
 
-let contract = new web3.eth.Contract(ABI, TOKEN);
-
-let value = web3.utils.toWei(amount, "ether");
-
-document.getElementById("status").innerText = "Enviando...";
-
-contract.methods.transfer(to, value)
-.send({ from: account })
-.then(() => {
-document.getElementById("status").innerText = "✅ Enviado";
-})
-.catch(err => {
-document.getElementById("status").innerText = "❌ Error";
-console.log(err);
-});
-
+  const blob = new Blob([JSON.stringify(walletData, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "wallet_chorox_bsc.json";
+  a.click();
 }
-
 </script>
-
 </body>
 </html>
