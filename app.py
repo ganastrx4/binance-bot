@@ -161,7 +161,350 @@ def crear_genesis():
 @app.route("/")
 def home():
     return "<h1>GODCHAIN ONLINE</h1>"
+@app.route("/scan")
+def scan():
 
+    html = """
+<!DOCTYPE html>
+<html lang='es'>
+<head>
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>CharlyScan PRO</title>
+
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+}
+
+body{
+font-family:Arial,Helvetica,sans-serif;
+background:#050816;
+color:white;
+padding:22px;
+}
+
+.wrap{
+max-width:1400px;
+margin:auto;
+}
+
+.top{
+background:linear-gradient(135deg,#00c6ff,#1d4ed8,#312e81);
+padding:38px;
+border-radius:28px;
+box-shadow:0 20px 50px rgba(0,0,0,.35);
+margin-bottom:22px;
+}
+
+.logo{
+font-size:46px;
+font-weight:900;
+letter-spacing:2px;
+}
+
+.sub{
+margin-top:10px;
+font-size:18px;
+opacity:.9;
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+gap:18px;
+margin-bottom:22px;
+}
+
+.card{
+background:#091224;
+border:1px solid #162544;
+border-radius:22px;
+padding:24px;
+box-shadow:0 10px 30px rgba(0,0,0,.25);
+}
+
+.label{
+font-size:13px;
+color:#93a4c7;
+letter-spacing:2px;
+text-transform:uppercase;
+margin-bottom:14px;
+}
+
+.big{
+font-size:42px;
+font-weight:900;
+}
+
+.green{color:#22c55e;}
+.cyan{color:#22d3ee;}
+.yellow{color:#facc15;}
+.purple{color:#c084fc;}
+
+.wallet{
+background:#091224;
+border:1px solid #162544;
+border-radius:24px;
+padding:25px;
+margin-bottom:22px;
+}
+
+.row{
+display:flex;
+gap:15px;
+flex-wrap:wrap;
+}
+
+input{
+flex:1;
+min-width:260px;
+padding:18px;
+background:#030712;
+border:1px solid #1e293b;
+color:white;
+border-radius:16px;
+font-size:16px;
+}
+
+button{
+padding:18px 34px;
+border:none;
+border-radius:16px;
+font-weight:800;
+cursor:pointer;
+background:linear-gradient(135deg,#2563eb,#1d4ed8);
+color:white;
+font-size:16px;
+}
+
+button:hover{
+transform:scale(1.03);
+}
+
+.balance{
+margin-top:18px;
+font-size:40px;
+font-weight:900;
+color:#facc15;
+}
+
+.panel{
+background:#091224;
+border:1px solid #162544;
+border-radius:24px;
+overflow:hidden;
+}
+
+.head{
+padding:22px;
+font-size:28px;
+font-weight:900;
+border-bottom:1px solid #162544;
+display:flex;
+justify-content:space-between;
+flex-wrap:wrap;
+gap:10px;
+}
+
+a{
+color:#22d3ee;
+text-decoration:none;
+font-weight:700;
+}
+
+a:hover{
+color:white;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+}
+
+th{
+text-align:left;
+padding:18px;
+color:#8ea2c9;
+font-size:13px;
+text-transform:uppercase;
+letter-spacing:1px;
+background:#08101d;
+}
+
+td{
+padding:18px;
+border-top:1px solid #13203d;
+font-size:15px;
+}
+
+tr:hover{
+background:#0d1830;
+}
+
+.hash{
+font-size:12px;
+color:#7b8cae;
+}
+
+.addr{
+font-size:13px;
+color:#d1d5db;
+}
+
+.footer{
+margin-top:20px;
+text-align:center;
+color:#6b7280;
+font-size:13px;
+}
+
+@media(max-width:700px){
+.logo{font-size:32px;}
+.big{font-size:28px;}
+.head{font-size:22px;}
+}
+</style>
+</head>
+
+<body>
+<div class='wrap'>
+
+<div class='top'>
+<div class='logo'>⛓ CHARLYSCAN PRO</div>
+<div class='sub'>Blockchain Explorer • Minería CHC • Wallet Tracker Profesional</div>
+</div>
+
+<div class='grid'>
+
+<div class='card'>
+<div class='label'>Estado Nodo</div>
+<div class='big green'>● ONLINE</div>
+</div>
+
+<div class='card'>
+<div class='label'>Bloques</div>
+<div class='big cyan' id='blocks'>0</div>
+</div>
+
+<div class='card'>
+<div class='label'>Supply</div>
+<div class='big yellow' id='supply'>0 CHC</div>
+</div>
+
+<div class='card'>
+<div class='label'>
+Reward •
+<a target='_blank' href='/stats'>ver stats</a>
+</div>
+<div class='big purple' id='last-reward'>LIVE</div>
+</div>
+
+</div>
+
+<div class='wallet'>
+<div class='label'>Wallet Tracker</div>
+
+<div class='row'>
+<input id='wallet-input' placeholder='Pega wallet pública CHC...'>
+
+<button onclick='buscarWallet()'>Buscar</button>
+</div>
+
+<div class='balance' id='user-balance'>0 CHC</div>
+</div>
+
+<div class='panel'>
+<div class='head'>
+<span>Últimos Bloques Minados</span>
+<a target='_blank' href='/cadena'>Abrir JSON cadena</a>
+</div>
+
+<table>
+<thead>
+<tr>
+<th>Bloque</th>
+<th>Minero</th>
+<th>Reward</th>
+<th>Hash</th>
+</tr>
+</thead>
+
+<tbody id='blockchain-table'></tbody>
+
+</table>
+</div>
+
+<div class='footer'>
+CHOROX • CHC • CharlyScan Professional Edition
+</div>
+
+</div>
+
+<script>
+
+async function cargar(){
+
+let stats = await fetch('/stats').then(r=>r.json());
+let chain = await fetch('/cadena').then(r=>r.json());
+
+document.getElementById("blocks").innerText =
+Number(stats.bloques).toLocaleString("es-MX");
+
+document.getElementById("supply").innerText =
+Number(stats.supply).toLocaleString("es-MX") + " CHC";
+
+document.getElementById("last-reward").innerHTML =
+"<a target='_blank' href='/stats'>" +
+Number(stats.recompensa).toLocaleString("es-MX") +
+" CHC</a>";
+
+let html = "";
+
+chain.forEach(x=>{
+
+let tx = x.transacciones?.[0];
+if(!tx) return;
+
+html += `
+<tr>
+<td class='cyan'>#${x.indice}</td>
+<td class='addr'>${String(tx.receptor).substring(0,22)}...</td>
+<td class='yellow'>+${Number(tx.monto).toLocaleString("es-MX")}</td>
+<td class='hash'>${String(x.hash).substring(0,28)}...</td>
+</tr>
+`;
+
+});
+
+document.getElementById("blockchain-table").innerHTML = html;
+
+}
+
+async function buscarWallet(){
+
+let w = document.getElementById("wallet-input").value.trim();
+
+if(!w) return;
+
+let data = await fetch("/balance/"+w).then(r=>r.json());
+
+document.getElementById("user-balance").innerText =
+Number(data.balance).toLocaleString("es-MX") + " CHC";
+
+}
+
+cargar();
+setInterval(cargar,10000);
+
+</script>
+
+</body>
+</html>
+"""
+    return html
 # ============================================================
 # WALLET
 # ============================================================
