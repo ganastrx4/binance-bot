@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>CHOROX GIFT</title>
+<script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+
+<style>
+body{
+background:#050816;
+color:white;
+font-family:Arial;
+text-align:center;
+padding:40px;
+}
+
+.box{
+max-width:500px;
+margin:auto;
+background:#0f172a;
+padding:25px;
+border-radius:20px;
+border:1px solid #1e293b;
+}
+
+input{
+width:100%;
+padding:15px;
+margin:10px 0;
+border-radius:12px;
+border:none;
+background:#111827;
+color:white;
+}
+
+button{
+width:100%;
+padding:15px;
+border:none;
+border-radius:12px;
+background:#22c55e;
+color:white;
+font-weight:900;
+cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="box">
+
+<h1>🎁 CHOROX GIFT</h1>
+
+<button onclick="connect()">🔗 Conectar MetaMask</button>
+
+<p id="wallet">No conectado</p>
+
+<input id="to" placeholder="Wallet destino">
+<input id="amount" placeholder="Cantidad CHOROX">
+
+<button onclick="send()">ENVIAR</button>
+
+<p id="status"></p>
+
+</div>
+
+<script>
+
+let web3;
+let account;
+
+const TOKEN = "0x15681A8E9a8dF14946A4F852822B709e37b70c4E";
+
+const ABI = [
+{
+"constant":false,
+"inputs":[
+{"name":"_to","type":"address"},
+{"name":"_value","type":"uint256"}
+],
+"name":"transfer",
+"type":"function"
+}
+];
+
+async function connect(){
+
+if(window.ethereum){
+web3 = new Web3(window.ethereum);
+await window.ethereum.request({ method: "eth_requestAccounts" });
+
+const accounts = await web3.eth.getAccounts();
+account = accounts[0];
+
+document.getElementById("wallet").innerText = account;
+
+}else{
+alert("Instala MetaMask");
+}
+
+}
+
+async function send(){
+
+let to = document.getElementById("to").value;
+let amount = document.getElementById("amount").value;
+
+let contract = new web3.eth.Contract(ABI, TOKEN);
+
+let value = web3.utils.toWei(amount, "ether");
+
+document.getElementById("status").innerText = "Enviando...";
+
+contract.methods.transfer(to, value)
+.send({ from: account })
+.then(() => {
+document.getElementById("status").innerText = "✅ Enviado";
+})
+.catch(err => {
+document.getElementById("status").innerText = "❌ Error";
+console.log(err);
+});
+
+}
+
+</script>
+
+</body>
+</html>
