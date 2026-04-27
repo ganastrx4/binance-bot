@@ -19,6 +19,65 @@ import hashlib
 import secrets
 import unicodedata
 from pymongo import MongoClient
+from web3 import Web3
+import os
+
+BSC_RPC = "https://bsc-dataseed.binance.org/"
+
+w3 = Web3(Web3.HTTPProvider(BSC_RPC))
+
+TOKEN_ADDRESS = Web3.to_checksum_address("0x15681A8E9a8dF14946A4F852822B709e37b70c4E")
+OWNER = Web3.to_checksum_address("0xd4508db1aDC48deA121f356B254a7155DDAB36Ae")
+PRIVATE_KEY = os.getenv("PRIVATE_KEY")
+
+def send_chorox(to, amount):
+
+    to = Web3.to_checksum_address(to)
+
+    contract = w3.eth.contract(
+        address=TOKEN_ADDRESS,
+        abi=ABI
+    )
+
+    decimals = 18
+    value = int(amount * (10 ** decimals))
+
+    nonce = w3.eth.get_transaction_count(OWNER)
+
+    tx = contract.functions.transfer(
+        to,
+        value
+    ).build_transaction({
+        "chainId": 56,
+        "gas": 120000,
+        "gasPrice": w3.to_wei("3", "gwei"),
+        "nonce": nonce
+    })
+
+    signed = w3.eth.account.sign_transaction(
+        tx,
+        PRIVATE_KEY
+    )
+
+    tx_hash = w3.eth.send_raw_transaction(
+        signed.raw_transaction
+    )
+
+    return tx_hash.hex()
+ # ============================================================
+# FINs
+# ============================================================  
+
+ABI = [{
+    "constant": False,
+    "inputs": [
+        {"name": "_to", "type": "address"},
+        {"name": "_value", "type": "uint256"}
+    ],
+    "name": "transfer",
+    "outputs": [{"name": "", "type": "bool"}],
+    "type": "function"
+}]
 
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
