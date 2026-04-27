@@ -1137,7 +1137,11 @@ def swap_now():
         "publica": miner,
         "semilla": seed
     })
-
+    print("miner recibido:", miner)
+    print("seed recibida:", seed)
+    print("wallet encontrada:", row) 
+    row = wallets.find_one({"publica": miner})
+    print(row)
     if not row:
         return "❌ Wallet minera no válida"
 
