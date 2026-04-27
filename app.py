@@ -29,7 +29,10 @@ chain = db["blockchain"]
 wallets = db["wallets"]
 txs = db["transacciones"]
 
-chain.create_index([("indice", ASCENDING)], unique=True)
+try:
+    chain.create_index([("indice", ASCENDING)], unique=True)
+except Exception as e:
+    print("Index ya existe:", e)
 
 # =========================
 # GENESIS
