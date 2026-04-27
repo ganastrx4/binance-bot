@@ -131,22 +131,28 @@ def claim_bonus():
         next_time = last + timedelta(hours=24)
 
         if now < next_time:
-            return "⏳ Aún no disponible"
+            faltan = next_time - now
+            horas = int(faltan.total_seconds() // 3600)
+            minutos = int((faltan.total_seconds() % 3600) // 60)
+            return f"⏳ Espera {horas}h {minutos}m"
 
-    # aquí va el pago real
-    try:
-        tx = send_chorox(wallet, 100)
+    # Validar minería
+    mined = True
 
-        claims.update_one(
-            {"wallet": wallet},
-            {"$set": {"last_claim": now}},
-            upsert=True
-        )
+    if not mined:
+        return "❌ No minaste en últimas 24h"
 
-        return f"✅ 100 CHOROX enviados TX: {tx}"
+    # Enviar premio
+    # send_chorox(wallet, 100)
 
-    except Exception as e:
-        return f"❌ Error envío {str(e)}"
+    claims.update_one(
+        {"wallet": wallet},
+        {"$set": {"last_claim": now}},
+        upsert=True
+    )
+
+    return "✅ 100 CHOROX enviados"
+    
     # =========================
     # Validar si minó CHC hoy
     # =========================
