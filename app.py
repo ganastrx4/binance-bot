@@ -30,9 +30,14 @@ wallets = db["wallets"]
 txs = db["transacciones"]
 
 try:
+    chain.drop_index("indice_1")
+except:
+    pass
+
+chain.create_index([("indice", ASCENDING)], unique=True)
+
+if "indice_1" not in chain.index_information():
     chain.create_index([("indice", ASCENDING)], unique=True)
-except Exception as e:
-    print("Index ya existe:", e)
 
 # =========================
 # GENESIS
