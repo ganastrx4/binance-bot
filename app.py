@@ -1,567 +1,271 @@
+# ==========================================
+# 🚀 CHARLYCOIN NODE FULL PRO DEFINITIVO
+# Render + MongoDB + Anti Crash + Fast Chain
+# Archivo: app.py
+# ==========================================
+
 import os
+import json
 import time
 import hashlib
-import json
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
-from pymongo import MongoClient, ASCENDING, DESCENDING
+from pymongo import MongoClient, DESCENDING, ASCENDING
+from pymongo.errors import DuplicateKeyError
 
+# ==========================================
+# APP
+# ==========================================
 app = Flask(__name__)
 CORS(app)
 
-# =========================
+# ==========================================
 # CONFIG
-# =========================
+# ==========================================
 PORT = int(os.environ.get("PORT", 10000))
-MONGO_URI = os.environ.get("MONGO_URI", "")
 
-if not MONGO_URI:
-    MONGO_URI = "mongodb+srv://charly:caseta82*@cluster0.daebfm2.mongodb.net/charlycoin_db?retryWrites=true&w=majority"
+MONGO_URI = os.environ.get("MONGO_URI", "").strip()
+
+if MONGO_URI == "":
+    print("⚠️ MONGO_URI no encontrada, usando respaldo")
+    MONGO_URI = "mongodb+srv://charly:caseta82%2A@cluster0.daebfm2.mongodb.net/charlycoin_db?retryWrites=true&w=majority&tls=true"
 
 DIFICULTAD = 5
-RECOMPENSA = 18.0
-CHOROX_RATE = 1  # 1 CHC = 1 CHOROX
+RECOMPENSA_INICIAL = 18.0
+HALVING_CADA = 21000
 
-from pymongo import MongoClient, ASCENDING
+ULTIMO_MINADO = {}
 
-client = MongoClient(MONGO_URI)
+# ==========================================
+# MONGO
+# ==========================================
+client = MongoClient(
+    MONGO_URI,
+    serverSelectionTimeoutMS=30000,
+    connectTimeoutMS=30000,
+    socketTimeoutMS=30000,
+    retryWrites=True
+)
+
 db = client["charlycoin_db"]
+collection = db["blockchain"]
 
-chain = db["blockchain"]
-wallets = db["wallets"]
-txs = db["transacciones"]
+# ==========================================
+# INDICES SEGUROS (ANTI ERROR DUPLICADOS)
+# ==========================================
+collection.create_index("hash")
 
-# =========================
-# ÍNDICE LIMPIO (SIN ERROR)
-# =========================
 try:
-    indexes = chain.index_information()
+    collection.create_index([("indice", ASCENDING)], unique=True)
+    print("✅ índice unique activo")
+except:
+    print("⚠️ índices duplicados detectados, usando índice normal")
+    collection.create_index([("indice", ASCENDING)])
 
-    # si existe el índice viejo pero sin unique → lo borramos
-    if "indice_1" in indexes:
-        if not indexes["indice_1"].get("unique", False):
-            chain.drop_index("indice_1")
+# ==========================================
+# HTML
+# ==========================================
+HTML = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>CharlyCoin Node</title>
+<style>
+body{background:#07111c;color:#fff;font-family:Arial;padding:40px}
+.box{background:#111827;padding:20px;border-radius:14px}
+.green{color:#00ff88}
+a{color:#00ffff;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="box">
+<h1>🚀 CHARLYCOIN NODE</h1>
+<p class="green">ONLINE</p>
+<p><a href="/cadena">/cadena</a></p>
+<p><a href="/minar">/minar</a></p>
+<p><a href="/stats">/stats</a></p>
+<p><a href="/health">/health</a></p>
+</div>
+</body>
+</html>
+"""
 
-    # crear índice correcto solo si no existe o fue eliminado
-    if "indice_1" not in chain.index_information():
-        chain.create_index([("indice", ASCENDING)], unique=True)
+# ==========================================
+# HASH
+# ==========================================
+def calcular_hash(bloque):
+    copia = dict(bloque)
+    copia.pop("_id", None)
+    copia.pop("hash", None)
 
-except Exception as e:
-    print("⚠️ Error manejando índices:", e)
+    texto = json.dumps(copia, sort_keys=True).encode()
+    return hashlib.sha256(texto).hexdigest()
 
-# =========================
+# ==========================================
 # GENESIS
-# =========================
-def genesis():
-    if chain.count_documents({}) == 0:
+# ==========================================
+def crear_genesis():
+    if collection.count_documents({}) == 0:
         bloque = {
             "indice": 0,
             "timestamp": time.time(),
             "transacciones": [],
-            "hash_anterior": "0",
-            "nonce": "0"
+            "nonce": 0,
+            "hash_anterior": "0"
         }
-        bloque["hash"] = hashlib.sha256(json.dumps(bloque).encode()).hexdigest()
-        chain.insert_one(bloque)
 
-# =========================
-# HASH
-# =========================
-def hash_block(b):
-    b = dict(b)
-    b.pop("_id", None)
-    b.pop("hash", None)
-    return hashlib.sha256(json.dumps(b, sort_keys=True).encode()).hexdigest()
+        bloque["hash"] = calcular_hash(bloque)
 
-# =========================
-# BALANCE
-# =========================
-@app.route("/balance/<wallet>")
-def balance(wallet):
-    pipeline = [
-        {"$unwind": "$transacciones"},
-        {"$match": {"transacciones.receptor": wallet}},
-        {"$group": {"_id": None, "total": {"$sum": "$transacciones.monto"}}}
-    ]
-    res = list(chain.aggregate(pipeline))
-    return jsonify({"balance": res[0]["total"] if res else 0})
+        try:
+            collection.insert_one(bloque)
+        except:
+            pass
 
-# =========================
-# MINAR
-# =========================
-@app.route("/minar", methods=["POST"])
-def minar():
-    data = request.get_json()
-    wallet = data.get("wallet")
-    nonce = data.get("nonce")
+# ==========================================
+# RECOMPENSA
+# ==========================================
+def recompensa_actual():
+    bloques = collection.count_documents({})
+    halvings = bloques // HALVING_CADA
+    recompensa = RECOMPENSA_INICIAL / (2 ** halvings)
+    return max(recompensa, 0.00000001)
 
-    if not wallet:
-        return jsonify({"error": "wallet faltante"}), 400
+# ==========================================
+# HOME
+# ==========================================
+@app.route("/")
+def home():
+    return render_template_string(HTML)
 
-    h = hashlib.sha256(f"{wallet}{nonce}".encode()).hexdigest()
+# ==========================================
+# HEALTH
+# ==========================================
+@app.route("/health")
+def health():
+    return jsonify({"status": "online"})
 
-    if not h.startswith("0" * DIFICULTAD):
-        return jsonify({"error": "invalid hash"}), 400
+# ==========================================
+# STATS
+# ==========================================
+@app.route("/stats")
+def stats():
+    total = collection.count_documents({})
 
-    last = chain.find_one(sort=[("indice", -1)])
+    return jsonify({
+        "bloques": max(total - 1, 0),
+        "recompensa": recompensa_actual(),
+        "dificultad": DIFICULTAD
+    })
 
-    bloque = {
-        "indice": last["indice"] + 1,
-        "timestamp": time.time(),
-        "transacciones": [{
-            "emisor": "RED",
-            "receptor": wallet,
-            "monto": RECOMPENSA
-        }],
-        "nonce": nonce,
-        "hash_anterior": last["hash"]
-    }
+# ==========================================
+# CADENA
+# ==========================================
+@app.route("/cadena")
+def cadena():
 
-    bloque["hash"] = hash_block(bloque)
-    chain.insert_one(bloque)
-
-    # crear wallet si no existe
-    if not wallets.find_one({"wallet": wallet}):
-        wallets.insert_one({"wallet": wallet, "chc": 0, "chorox": 0})
-
-    wallets.update_one(
-        {"wallet": wallet},
-        {"$inc": {"chc": RECOMPENSA}},
-        upsert=True
+    datos = list(
+        collection.find({}, {"_id": 0})
+        .sort("indice", DESCENDING)
+        .limit(100)
     )
 
-    return jsonify({"ok": True})
+    datos.reverse()
 
-# =========================
-# TRANSFERIR CHC
-# =========================
-@app.route("/transferir", methods=["POST"])
-def transferir():
-    d = request.get_json()
+    return jsonify(datos)
 
-    emisor = d["emisor"]
-    receptor = d["receptor"]
-    monto = float(d["monto"])
+# ==========================================
+# BALANCE
+# ==========================================
+@app.route("/balance/<wallet>")
+def balance(wallet):
 
-    w1 = wallets.find_one({"wallet": emisor})
-    if not w1:
-        return jsonify({"error": "wallet emisor no existe"}), 404
+    total = 0.0
 
-    if w1["chc"] < monto:
-        return jsonify({"error": "saldo insuficiente"}), 400
+    bloques = collection.find(
+        {"transacciones.receptor": wallet},
+        {"_id": 0}
+    )
 
-    wallets.update_one({"wallet": emisor}, {"$inc": {"chc": -monto}}, upsert=True)
-    wallets.update_one({"wallet": receptor}, {"$inc": {"chc": monto}}, upsert=True)
+    for bloque in bloques:
+        for tx in bloque["transacciones"]:
+            if tx["receptor"] == wallet:
+                total += float(tx["monto"])
 
-    return jsonify({"ok": True})
+    return jsonify({
+        "wallet": wallet,
+        "balance": total
+    })
 
-# =========================
-# SWAP CHC → CHOROX (MINT + BURN)
-# =========================
-@app.route("/swap", methods=["POST"])
-def swap():
-    data = request.get_json()
-    wallet = data.get("wallet")
-    amount = float(data.get("amount"))
+# ==========================================
+# MINAR
+# ==========================================
+@app.route("/minar", methods=["POST"])
+def minar():
 
-    w = wallets.find_one({"wallet": wallet})
-    if not w or w["chc"] < amount:
-        return jsonify({"error": "sin fondos"}), 400
+    data = request.get_json(force=True)
 
-    # burn CHC
-    wallets.update_one({"wallet": wallet}, {"$inc": {"chc": -amount}})
+    wallet = str(data.get("wallet", "")).strip()
+    nonce = str(data.get("nonce", "")).strip()
 
-    # mint CHOROX
-    chorox = amount * CHOROX_RATE
-    wallets.update_one({"wallet": wallet}, {"$inc": {"chorox": chorox}})
+    if wallet == "":
+        return jsonify({"error": "wallet requerida"}), 400
+
+    ahora = time.time()
+
+    # Anti spam
+    if wallet in ULTIMO_MINADO:
+        if ahora - ULTIMO_MINADO[wallet] < 2:
+            return jsonify({"error": "espera 2 segundos"}), 429
+
+    # POW
+    prueba = hashlib.sha256(f"{wallet}{nonce}".encode()).hexdigest()
+
+    if not prueba.startswith("0" * DIFICULTAD):
+        return jsonify({"error": "hash invalido"}), 400
+
+    ultimo = collection.find_one(sort=[("indice", -1)])
+
+    if not ultimo:
+        crear_genesis()
+        ultimo = collection.find_one(sort=[("indice", -1)])
+
+    nuevo = {
+        "indice": ultimo["indice"] + 1,
+        "timestamp": time.time(),
+        "transacciones": [
+            {
+                "emisor": "RED",
+                "receptor": wallet,
+                "monto": recompensa_actual()
+            }
+        ],
+        "nonce": nonce,
+        "hash_anterior": ultimo["hash"]
+    }
+
+    nuevo["hash"] = calcular_hash(nuevo)
+
+    try:
+        collection.insert_one(nuevo)
+    except DuplicateKeyError:
+        return jsonify({"error": "bloque duplicado"}), 400
+    except:
+        return jsonify({"error": "error insertando bloque"}), 500
+
+    ULTIMO_MINADO[wallet] = ahora
 
     return jsonify({
         "ok": True,
-        "burned_chc": amount,
-        "minted_chorox": chorox
+        "bloque": nuevo["indice"],
+        "recompensa": nuevo["transacciones"][0]["monto"],
+        "hash": nuevo["hash"]
     })
 
-# =========================
-# STATS
-# =========================
-@app.route("/stats")
-def stats():
-    return jsonify({
-        "bloques": chain.count_documents({}),
-        "supply": chain.count_documents({}) * RECOMPENSA
-    })
+# ==========================================
+# START
+# ==========================================
+crear_genesis()
 
-# =========================
-# BLOCKCHAIN
-# =========================
-@app.route("/cadena")
-def cadena():
-    return jsonify(list(chain.find({}, {"_id": 0}).sort("indice", DESCENDING).limit(50)))
-
-# =========================
-# home
-# =========================
-
-@app.route("/")
-def home():
-
-    html = """
-<!DOCTYPE html>
-<html>
-<head>
-<meta name='viewport' content='width=device-width,initial-scale=1'>
-<title>CHC CHARLYCOIN Super App</title>
-
-<style>
-*{
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
-}
-
-body{
-    font-family:Arial,Helvetica,sans-serif;
-    background:#050816;
-    color:white;
-    min-height:100vh;
-}
-
-.hero{
-    padding:55px 25px 45px 25px;
-    background:
-    radial-gradient(circle at top right,#1d4ed8 0%,transparent 35%),
-    radial-gradient(circle at top left,#06b6d4 0%,transparent 35%),
-    linear-gradient(135deg,#0f172a,#111827,#0b1020);
-    border-radius:0 0 35px 35px;
-    box-shadow:0 10px 30px rgba(0,0,0,.45);
-}
-
-.badge{
-    display:inline-block;
-    padding:8px 14px;
-    border-radius:30px;
-    background:rgba(255,255,255,.08);
-    font-size:12px;
-    letter-spacing:1px;
-    margin-bottom:18px;
-    border:1px solid rgba(255,255,255,.08);
-}
-
-h1{
-    font-size:34px;
-    font-weight:900;
-    margin-bottom:10px;
-}
-
-.sub{
-    color:#cbd5e1;
-    font-size:15px;
-    line-height:1.6;
-    max-width:560px;
-}
-
-.wrap{
-    max-width:1180px;
-    margin:auto;
-    padding:24px;
-}
-
-.grid{
-    display:grid;
-    grid-template-columns: 1.2fr .8fr;
-    gap:24px;
-}
-
-.card{
-    background:#0f172a;
-    border:1px solid #1e293b;
-    border-radius:22px;
-    padding:18px;
-    box-shadow:0 8px 24px rgba(0,0,0,.25);
-}
-
-.btn{
-    display:block;
-    text-decoration:none;
-    color:white;
-    font-weight:700;
-    padding:18px;
-    border-radius:18px;
-    margin-bottom:14px;
-}
-
-.wallet{background:linear-gradient(135deg,#2563eb,#1d4ed8);}
-.scan{background:linear-gradient(135deg,#10b981,#059669);}
-.stats{background:linear-gradient(135deg,#7c3aed,#6d28d9);}
-.mine{background:linear-gradient(135deg,#f59e0b,#d97706);}
-.trade{background:linear-gradient(135deg,#ec4899,#db2777);}
-.swap{background:linear-gradient(135deg,#06b6d4,#0891b2);}
-.market{background:linear-gradient(135deg,#ef4444,#dc2626);}
-
-.side{
-    background:#0f172a;
-    border:1px solid #1e293b;
-    border-radius:22px;
-    padding:20px;
-    box-shadow:0 8px 24px rgba(0,0,0,.25);
-    height:fit-content;
-}
-
-.side h2{
-    font-size:24px;
-    margin-bottom:12px;
-}
-
-.reward{
-    font-size:48px;
-    font-weight:900;
-    color:#22c55e;
-    margin:12px 0;
-}
-
-.input{
-    width:100%;
-    padding:14px;
-    border-radius:14px;
-    border:none;
-    outline:none;
-    background:#111827;
-    color:white;
-    margin-top:10px;
-}
-
-.claim{
-    width:100%;
-    border:none;
-    padding:16px;
-    border-radius:16px;
-    margin-top:14px;
-    font-size:18px;
-    font-weight:900;
-    color:white;
-    cursor:pointer;
-    background:linear-gradient(135deg,#22c55e,#16a34a);
-}
-
-.claim:disabled{
-    opacity:.5;
-    cursor:not-allowed;
-}
-
-.small{
-    color:#94a3b8;
-    font-size:13px;
-    margin-top:10px;
-    line-height:1.5;
-}
-
-.timer{
-    margin-top:14px;
-    font-size:18px;
-    font-weight:700;
-    color:#f59e0b;
-}
-
-.status{
-    margin-top:12px;
-    font-size:14px;
-    color:#22c55e;
-}
-
-.row{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:14px;
-    margin-top:18px;
-}
-
-.mini{
-    background:#111827;
-    border:1px solid #1f2937;
-    border-radius:18px;
-    padding:16px;
-}
-
-.mini small{
-    color:#94a3b8;
-    display:block;
-    margin-bottom:8px;
-}
-
-.footer{
-    text-align:center;
-    color:#64748b;
-    font-size:12px;
-    padding:25px 0 10px;
-}
-
-@media(max-width:900px){
-    .grid{
-        grid-template-columns:1fr;
-    }
-}
-</style>
-</head>
-
-<body>
-
-<div class='hero'>
-    <div class='badge'>CHC • WEB3 • BONUS DIARIO</div>
-    <h1>💎 CHC SUPER APP - CHARLYCOIN</h1>
-    <div class='sub'>
-        Wallet descentralizada, explorer en vivo, minería CHC,
-        swap y ahora recompensas diarias en CHOROX.
-    </div>
-</div>
-
-<div class='wrap'>
-
-<div class='grid'>
-
-<div class='card'>
-    <a class='btn wallet' href='/wallet'>💼 Abrir Wallet</a>
-    <a class='btn scan' href='/scan'>⛓ Blockchain Explorer</a>
-    <a class='btn stats' href='/stats'>📊 Estadísticas</a>
-    <a class='btn mine' href='/cadena'>🚀 Últimos Bloques</a>
-    <a class='btn trade' href='/trade'>📈 Comprar Criptos</a>
-    <a class='btn swap' href='/swap'>🔄 Swap CHC ↔ CHOROX</a>
-    <a class='btn market' href='/prices'>🔥 Mercado Binance</a>
-
-    <div class='row'>
-        <div class='mini'>
-            <small>Token</small>
-            <b>CHOROX</b>
-        </div>
-
-        <div class='mini'>
-            <small>Red</small>
-            <b>BSC</b>
-        </div>
-
-        <div class='mini'>
-            <small>Minería</small>
-            <b>CHC Network</b>
-        </div>
-
-        <div class='mini'>
-            <small>Estado</small>
-            <b style='color:#22c55e;'>● Online</b>
-        </div>
-    </div>
-</div>
-
-<div class='side'>
-
-    <h2>🎁 Bonus Diario</h2>
-
-    <div class='small'>
-        Si minaste CHC en las últimas 24 horas puedes reclamar:
-    </div>
-
-    <div class='reward'>100 CHOROX</div>
-
-    <input id='wallet' class='input'
-    placeholder='Pega tu wallet BSC / minera'>
-
-    <button id='btn' class='claim' onclick='claimNow()'>
-        Reclamar Ahora
-    </button>
-
-    <div class='timer' id='timer'>
-        Disponible ahora
-    </div>
-
-    <div class='status' id='msg'></div>
-
-    <div class='small'>
-        El sistema guarda tu dirección y solo permite un reclamo cada 24 horas.
-        Debes haber minado CHC recientemente.
-    </div>
-
-</div>
-
-</div>
-
-<div class='footer'>
-Powered by Charly Network • Trust Style UI
-</div>
-
-</div>
-
-<script>
-
-let saved = localStorage.getItem("wallet_chc");
-if(saved){
-    document.getElementById("wallet").value = saved;
-}
-
-async function claimNow(){
-
-    let wallet = document.getElementById("wallet").value.trim();
-
-    if(!wallet){
-        alert("Pon tu wallet");
-        return;
-    }
-
-    localStorage.setItem("wallet_chc", wallet);
-
-    document.getElementById("msg").innerHTML = "Procesando...";
-    document.getElementById("btn").disabled = true;
-
-    let fd = new FormData();
-    fd.append("wallet", wallet);
-
-    let r = await fetch("/claim_bonus",{
-        method:"POST",
-        body:fd
-    });
-
-    let t = await r.text();
-
-    document.getElementById("msg").innerHTML = t;
-
-    if(t.includes("✅")){
-        startTimer(86400);
-    }else{
-        document.getElementById("btn").disabled = false;
-    }
-}
-
-function startTimer(sec){
-
-    let box = document.getElementById("timer");
-
-    let x = setInterval(()=>{
-
-        sec--;
-
-        let h = Math.floor(sec/3600);
-        let m = Math.floor((sec%3600)/60);
-        let s = sec%60;
-
-        box.innerHTML =
-        h+"h "+m+"m "+s+"s";
-
-        if(sec<=0){
-            clearInterval(x);
-            box.innerHTML = "Disponible ahora";
-            document.getElementById("btn").disabled = false;
-        }
-
-    },1000);
-}
-
-</script>
-
-</body>
-</html>
-"""
-    return html
-
-# =========================
-# INIT
-# =========================
 if __name__ == "__main__":
-    genesis()
     app.run(host="0.0.0.0", port=PORT)
