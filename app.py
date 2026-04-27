@@ -156,16 +156,133 @@ def crear_genesis():
         collection.insert_one(b)
 
 # ============================================================
-# HOME
+# HOME + SCAN REEMPLAZO LIMPIO (PEGAR TAL CUAL)
 # ============================================================
+
 @app.route("/")
 def home():
-    return "<h1>GODCHAIN ONLINE</h1>"
+    return render_template_string("""
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GODCHAIN HOME</title>
+
+<style>
+body{
+margin:0;
+font-family:Arial;
+background:#050816;
+color:white;
+}
+
+.top{
+padding:40px;
+background:linear-gradient(135deg,#2563eb,#0ea5e9,#111827);
+text-align:center;
+border-bottom-left-radius:30px;
+border-bottom-right-radius:30px;
+}
+
+h1{
+font-size:38px;
+margin:0;
+}
+
+p{color:#cbd5e1}
+
+.container{
+max-width:1100px;
+margin:auto;
+padding:20px;
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+gap:15px;
+margin-top:20px;
+}
+
+.card{
+background:#0f172a;
+padding:20px;
+border-radius:18px;
+border:1px solid #1e293b;
+text-align:center;
+}
+
+a{
+display:block;
+padding:14px;
+margin-top:10px;
+border-radius:12px;
+text-decoration:none;
+color:white;
+font-weight:700;
+}
+
+.wallet{background:#2563eb}
+.scan{background:#06b6d4}
+.swap{background:#10b981}
+.stats{background:#f59e0b}
+
+.footer{
+text-align:center;
+margin-top:30px;
+color:#64748b;
+font-size:12px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="top">
+<h1>⚡ GODCHAIN V5</h1>
+<p>CHC • CHOROX • WEB3 SYSTEM</p>
+</div>
+
+<div class="container">
+
+<div class="grid">
+
+<div class="card">
+<h3>Wallet</h3>
+<a class="wallet" href="/wallet">Abrir Wallet</a>
+</div>
+
+<div class="card">
+<h3>Explorer</h3>
+<a class="scan" href="/scan">CharlyScan</a>
+</div>
+
+<div class="card">
+<h3>Swap</h3>
+<a class="swap" href="/swap">CHC → CHOROX</a>
+</div>
+
+<div class="card">
+<h3>Stats</h3>
+<a class="stats" href="/stats">Ver Stats</a>
+</div>
+
+</div>
+
+<div class="footer">
+GODCHAIN NETWORK • LIVE
+</div>
+
+</div>
+
+</body>
+</html>
+""")
+
+
 @app.route("/scan")
 def scan():
-
-    html = """
-<!DOCTYPE html>
+    return render_template_string("""<!DOCTYPE html>
 <html lang='es'>
 <head>
 <meta charset='UTF-8'>
@@ -502,9 +619,7 @@ setInterval(cargar,10000);
 </script>
 
 </body>
-</html>
-"""
-    return html
+</html>""")
 # ============================================================
 # WALLET
 # ============================================================
