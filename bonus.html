@@ -1,58 +1,63 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CHOROX Migration</title>
 <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
 
 <style>
 body{
-  background:#050816;
-  color:white;
-  font-family:Arial;
-  text-align:center;
-  padding:40px;
+    background:#050816;
+    color:white;
+    font-family:Arial;
+    text-align:center;
+    padding:40px;
 }
+
 .box{
-  max-width:650px;
-  margin:auto;
-  background:#0f172a;
-  padding:28px;
-  border-radius:20px;
-  border:1px solid #1e293b;
+    max-width:650px;
+    margin:auto;
+    background:#0f172a;
+    padding:30px;
+    border-radius:20px;
+    border:1px solid #1e293b;
 }
+
 input{
-  width:100%;
-  padding:14px;
-  margin:10px 0;
-  border-radius:12px;
-  border:none;
-  background:#111827;
-  color:white;
+    width:100%;
+    padding:14px;
+    margin:10px 0;
+    border:none;
+    border-radius:12px;
+    background:#111827;
+    color:white;
 }
+
 button{
-  width:100%;
-  padding:15px;
-  border:none;
-  border-radius:12px;
-  background:#22c55e;
-  color:white;
-  font-weight:900;
-  cursor:pointer;
-  margin-top:10px;
+    width:100%;
+    padding:15px;
+    margin-top:10px;
+    border:none;
+    border-radius:12px;
+    background:#22c55e;
+    color:white;
+    font-weight:900;
+    cursor:pointer;
 }
-.notice{
-  background:#111827;
-  padding:16px;
-  border-radius:14px;
-  margin:18px 0;
-  text-align:left;
-  line-height:1.6;
+
+.card{
+    margin-top:20px;
+    background:#111827;
+    padding:18px;
+    border-radius:16px;
+    text-align:left;
+    line-height:1.7;
 }
+
 .small{
-  font-size:14px;
-  opacity:.9;
+    font-size:14px;
+    opacity:.9;
 }
 </style>
 </head>
@@ -63,120 +68,137 @@ button{
 <h1>🎁 CHOROX MIGRATION</h1>
 <p>Convierte tus CHC minados a <b>CHOROX (BSC)</b></p>
 
-<button onclick="connect()">🔗 Conectar MetaMask (BSC)</button>
+<button onclick="connectMetaMask()">🔗 Conectar MetaMask (BSC)</button>
 <p id="wallet">No conectado</p>
 
-<div class="notice">
+<div class="card">
 <b>Importante:</b><br>
 • Aquí NO envías CHOROX, aquí lo RECIBES.<br>
-• Tus CHC minados serán verificados una sola vez.<br>
-• Después del cambio no podrán volver a convertirse.<br>
-• Guarda bien tu Seed Phrase y tu archivo JSON.<br><br>
+• Tus CHC serán verificados desde la blockchain CHC.<br>
+• Solo podrás migrarlos una vez.<br>
+• Guarda bien tu Seed Phrase y tu JSON.<br><br>
 🎉 Los primeros minadores podrán recibir hasta <b>1000 CHOROX</b>.
-Conforme más usuarios migren, entrará oferta y demanda.
 </div>
 
-<input id="minerWallet" placeholder="Tu wallet minera CHC (red CHC)" />
-<input id="receiver" placeholder="Tu wallet BSC donde recibirás CHOROX" />
-<input id="chcAmount" placeholder="Cantidad CHC a convertir" />
+<input id="minerWallet" placeholder="Tu wallet minera CHC">
+<button onclick="consultarSaldo()">BUSCAR SALDO CHC</button>
 
+<div class="card" id="saldoBox">
+<b>Wallet Tracker</b><br><br>
+Mi Saldo: <span id="saldo">--</span><br>
+Estado: <span id="estado">Sin verificar</span>
+</div>
+
+<input id="receiver" placeholder="Tu wallet BSC para recibir CHOROX">
 <button onclick="claimSwap()">RECIBIR CHOROX</button>
-<button onclick="downloadWallet()">DESCARGAR WALLET JSON</button>
 
 <p id="status"></p>
 
 </div>
 
 <script>
-let web3;
-let account;
+let account = null;
+const API = "https://binance-bot-hna7.onrender.com";
 
-const CHOROX_TOKEN = "0x15681A8E9a8dF14946A4F852822B709e37b70c4E";
-const NODE_API = "https://binance-bot-hna7.onrender.com";
+async function connectMetaMask(){
+    if(!window.ethereum){
+        alert("Instala MetaMask");
+        return;
+    }
 
-async function connect(){
-  if(!window.ethereum){
-    alert("Instala MetaMask");
-    return;
-  }
+    try{
+        await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: "0x38" }]
+        }).catch(()=>{});
 
-  web3 = new Web3(window.ethereum);
+        const accounts = await window.ethereum.request({
+            method: "eth_requestAccounts"
+        });
 
-  await window.ethereum.request({
-    method: "wallet_switchEthereumChain",
-    params: [{ chainId: "0x38" }]
-  }).catch(()=>{});
+        account = accounts[0];
+        document.getElementById("wallet").innerText = "Wallet BSC: " + account;
+        document.getElementById("receiver").value = account;
+    }catch(err){
+        console.log(err);
+    }
+}
 
-  await window.ethereum.request({ method:"eth_requestAccounts" });
-  const accounts = await web3.eth.getAccounts();
-  account = accounts[0];
+async function consultarSaldo(){
+    const minerWallet = document.getElementById("minerWallet").value.trim();
 
-  document.getElementById("wallet").innerText = "Wallet BSC: " + account;
+    if(!minerWallet){
+        alert("Ingresa tu wallet minera CHC");
+        return;
+    }
+
+    document.getElementById("status").innerText = "Consultando saldo...";
+
+    try{
+        const r = await fetch(`${API}/consultar_saldo`, {
+            method:"POST",
+            headers:{
+                "Content-Type":"application/json"
+            },
+            body: JSON.stringify({
+                wallet: minerWallet
+            })
+        });
+
+        const data = await r.json();
+
+        if(data.success){
+            document.getElementById("saldo").innerText = data.saldo_chc + " CHC";
+            document.getElementById("estado").innerText = data.canjeado ? "Ya intercambiado" : "Disponible para migración";
+            document.getElementById("status").innerText = "";
+        }else{
+            document.getElementById("saldo").innerText = "0 CHC";
+            document.getElementById("estado").innerText = "No encontrada";
+            document.getElementById("status").innerText = data.message || "Wallet no encontrada";
+        }
+    }catch(err){
+        console.log(err);
+        document.getElementById("status").innerText = "❌ Error de conexión con el nodo";
+    }
 }
 
 async function claimSwap(){
-  const minerWallet = document.getElementById("minerWallet").value.trim();
-  const receiver = document.getElementById("receiver").value.trim();
-  const amount = document.getElementById("chcAmount").value.trim();
+    const minerWallet = document.getElementById("minerWallet").value.trim();
+    const receiver = document.getElementById("receiver").value.trim();
 
-  if(!minerWallet || !receiver || !amount){
-    alert("Completa los datos");
-    return;
-  }
-
-  document.getElementById("status").innerText = "Verificando bloques minados y validando CHC...";
-
-  try{
-    const r = await fetch(`${NODE_API}/swap_chc_to_chorox`, {
-      mode: "cors",
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({
-        chc_wallet: minerWallet,
-        bsc_receiver: receiver,
-        amount: amount,
-        marcar_como_canjeado: true
-      })
-    });
-
-    const raw = await r.text();
-    let data = {};
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      data = { success:false, message:"Respuesta inválida del nodo: " + raw };
+    if(!minerWallet || !receiver){
+        alert("Completa los datos");
+        return;
     }
 
-    if(r.ok && data.success){
-      document.getElementById("status").innerText = "✅ CHOROX enviado correctamente";
-    }else{
-      document.getElementById("status").innerText = "❌ " + (data.message || `Error HTTP ${r.status}`);
+    document.getElementById("status").innerText = "Procesando migración...";
+
+    try{
+        const r = await fetch(`${API}/swap_chc_to_chorox`, {
+            method:"POST",
+            headers:{
+                "Content-Type":"application/json"
+            },
+            body: JSON.stringify({
+                wallet: minerWallet,
+                bsc_receiver: receiver
+            })
+        });
+
+        const data = await r.json();
+
+        if(data.success){
+            document.getElementById("status").innerText = "✅ CHOROX asignado correctamente";
+            document.getElementById("estado").innerText = "Ya intercambiado";
+        }else{
+            document.getElementById("status").innerText = "❌ " + (data.message || "No autorizado");
+        }
+    }catch(err){
+        console.log(err);
+        document.getElementById("status").innerText = "❌ Error de conexión";
     }
-
-  }catch(e){
-    console.log(e);
-    document.getElementById("status").innerText = "❌ Error de conexión";
-  }
-}
-
-function downloadWallet(){
-  if(!account){
-    alert("Primero conecta MetaMask");
-    return;
-  }
-
-  const walletData = {
-    red: "BSC",
-    wallet_publica: account,
-    nota: "Guarda este archivo junto con tu Seed Phrase de MetaMask"
-  };
-
-  const blob = new Blob([JSON.stringify(walletData, null, 2)], {type:"application/json"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "wallet_chorox_bsc.json";
-  a.click();
 }
 </script>
+
 </body>
 </html>
