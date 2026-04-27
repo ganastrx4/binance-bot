@@ -196,216 +196,357 @@ def get_chorox(addr):
 def home():
 
     html = """
-    <html>
-    <head>
-    <meta name='viewport' content='width=device-width,initial-scale=1'>
-    <title>CHC CHARLYCOIN Super App</title>
+<!DOCTYPE html>
+<html>
+<head>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>CHC CHARLYCOIN Super App</title>
 
-    <style>
-    *{
-        margin:0;
-        padding:0;
-        box-sizing:border-box;
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    font-family:Arial,Helvetica,sans-serif;
+    background:#050816;
+    color:white;
+    min-height:100vh;
+}
+
+.hero{
+    padding:55px 25px 45px 25px;
+    background:
+    radial-gradient(circle at top right,#1d4ed8 0%,transparent 35%),
+    radial-gradient(circle at top left,#06b6d4 0%,transparent 35%),
+    linear-gradient(135deg,#0f172a,#111827,#0b1020);
+    border-radius:0 0 35px 35px;
+    box-shadow:0 10px 30px rgba(0,0,0,.45);
+}
+
+.badge{
+    display:inline-block;
+    padding:8px 14px;
+    border-radius:30px;
+    background:rgba(255,255,255,.08);
+    font-size:12px;
+    letter-spacing:1px;
+    margin-bottom:18px;
+    border:1px solid rgba(255,255,255,.08);
+}
+
+h1{
+    font-size:34px;
+    font-weight:900;
+    margin-bottom:10px;
+}
+
+.sub{
+    color:#cbd5e1;
+    font-size:15px;
+    line-height:1.6;
+    max-width:560px;
+}
+
+.wrap{
+    max-width:1180px;
+    margin:auto;
+    padding:24px;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns: 1.2fr .8fr;
+    gap:24px;
+}
+
+.card{
+    background:#0f172a;
+    border:1px solid #1e293b;
+    border-radius:22px;
+    padding:18px;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);
+}
+
+.btn{
+    display:block;
+    text-decoration:none;
+    color:white;
+    font-weight:700;
+    padding:18px;
+    border-radius:18px;
+    margin-bottom:14px;
+}
+
+.wallet{background:linear-gradient(135deg,#2563eb,#1d4ed8);}
+.scan{background:linear-gradient(135deg,#10b981,#059669);}
+.stats{background:linear-gradient(135deg,#7c3aed,#6d28d9);}
+.mine{background:linear-gradient(135deg,#f59e0b,#d97706);}
+.trade{background:linear-gradient(135deg,#ec4899,#db2777);}
+.swap{background:linear-gradient(135deg,#06b6d4,#0891b2);}
+.market{background:linear-gradient(135deg,#ef4444,#dc2626);}
+
+.side{
+    background:#0f172a;
+    border:1px solid #1e293b;
+    border-radius:22px;
+    padding:20px;
+    box-shadow:0 8px 24px rgba(0,0,0,.25);
+    height:fit-content;
+}
+
+.side h2{
+    font-size:24px;
+    margin-bottom:12px;
+}
+
+.reward{
+    font-size:48px;
+    font-weight:900;
+    color:#22c55e;
+    margin:12px 0;
+}
+
+.input{
+    width:100%;
+    padding:14px;
+    border-radius:14px;
+    border:none;
+    outline:none;
+    background:#111827;
+    color:white;
+    margin-top:10px;
+}
+
+.claim{
+    width:100%;
+    border:none;
+    padding:16px;
+    border-radius:16px;
+    margin-top:14px;
+    font-size:18px;
+    font-weight:900;
+    color:white;
+    cursor:pointer;
+    background:linear-gradient(135deg,#22c55e,#16a34a);
+}
+
+.claim:disabled{
+    opacity:.5;
+    cursor:not-allowed;
+}
+
+.small{
+    color:#94a3b8;
+    font-size:13px;
+    margin-top:10px;
+    line-height:1.5;
+}
+
+.timer{
+    margin-top:14px;
+    font-size:18px;
+    font-weight:700;
+    color:#f59e0b;
+}
+
+.status{
+    margin-top:12px;
+    font-size:14px;
+    color:#22c55e;
+}
+
+.row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+    margin-top:18px;
+}
+
+.mini{
+    background:#111827;
+    border:1px solid #1f2937;
+    border-radius:18px;
+    padding:16px;
+}
+
+.mini small{
+    color:#94a3b8;
+    display:block;
+    margin-bottom:8px;
+}
+
+.footer{
+    text-align:center;
+    color:#64748b;
+    font-size:12px;
+    padding:25px 0 10px;
+}
+
+@media(max-width:900px){
+    .grid{
+        grid-template-columns:1fr;
     }
+}
+</style>
+</head>
 
-    body{
-        font-family:Arial,Helvetica,sans-serif;
-        background:#050816;
-        color:white;
-        min-height:100vh;
-    }
+<body>
 
-    .hero{
-        padding:55px 25px 45px 25px;
-        background:
-        radial-gradient(circle at top right,#1d4ed8 0%,transparent 35%),
-        radial-gradient(circle at top left,#06b6d4 0%,transparent 35%),
-        linear-gradient(135deg,#0f172a,#111827,#0b1020);
-        border-radius:0 0 35px 35px;
-        box-shadow:0 10px 30px rgba(0,0,0,.45);
-    }
+<div class='hero'>
+    <div class='badge'>CHC • WEB3 • BONUS DIARIO</div>
+    <h1>💎 CHC SUPER APP - CHARLYCOIN</h1>
+    <div class='sub'>
+        Wallet descentralizada, explorer en vivo, minería CHC,
+        swap y ahora recompensas diarias en CHOROX.
+    </div>
+</div>
 
-    .badge{
-        display:inline-block;
-        padding:8px 14px;
-        border-radius:30px;
-        background:rgba(255,255,255,.08);
-        font-size:12px;
-        letter-spacing:1px;
-        margin-bottom:18px;
-        border:1px solid rgba(255,255,255,.08);
-    }
+<div class='wrap'>
 
-    h1{
-        font-size:34px;
-        font-weight:900;
-        letter-spacing:.5px;
-        margin-bottom:10px;
-    }
+<div class='grid'>
 
-    .sub{
-        color:#cbd5e1;
-        font-size:15px;
-        line-height:1.6;
-        max-width:500px;
-        margin:auto;
-    }
+<div class='card'>
+    <a class='btn wallet' href='/wallet'>💼 Abrir Wallet</a>
+    <a class='btn scan' href='/scan'>⛓ Blockchain Explorer</a>
+    <a class='btn stats' href='/stats'>📊 Estadísticas</a>
+    <a class='btn mine' href='/cadena'>🚀 Últimos Bloques</a>
+    <a class='btn trade' href='/trade'>📈 Comprar Criptos</a>
+    <a class='btn swap' href='/swap'>🔄 Swap CHC ↔ CHOROX</a>
+    <a class='btn market' href='/prices'>🔥 Mercado Binance</a>
 
-    .wrap{
-        padding:22px;
-        max-width:650px;
-        margin:auto;
-    }
+    <div class='row'>
+        <div class='mini'>
+            <small>Token</small>
+            <b>CHOROX</b>
+        </div>
 
-    .card{
-        background:#0f172a;
-        border:1px solid #1e293b;
-        border-radius:22px;
-        padding:18px;
-        margin-bottom:18px;
-        box-shadow:0 8px 24px rgba(0,0,0,.25);
-    }
+        <div class='mini'>
+            <small>Red</small>
+            <b>BSC</b>
+        </div>
 
-    .row{
-        display:grid;
-        grid-template-columns:1fr 1fr;
-        gap:14px;
-        margin-top:14px;
-    }
+        <div class='mini'>
+            <small>Minería</small>
+            <b>CHC Network</b>
+        </div>
 
-    .btn{
-        display:block;
-        text-decoration:none;
-        color:white;
-        font-weight:700;
-        padding:18px;
-        border-radius:18px;
-        margin-bottom:14px;
-        transition:.2s;
-    }
-
-    .btn:active{
-        transform:scale(.98);
-    }
-
-    .wallet{
-        background:linear-gradient(135deg,#2563eb,#1d4ed8);
-    }
-
-    .scan{
-        background:linear-gradient(135deg,#10b981,#059669);
-    }
-
-    .stats{
-        background:linear-gradient(135deg,#7c3aed,#6d28d9);
-    }
-
-    .mine{
-        background:linear-gradient(135deg,#f59e0b,#d97706);
-    }
-
-    .mini{
-        background:#111827;
-        border:1px solid #1f2937;
-        border-radius:18px;
-        padding:16px;
-        text-align:left;
-    }
-
-    .mini small{
-        color:#94a3b8;
-        display:block;
-        margin-bottom:8px;
-    }
-
-    .mini b{
-        font-size:18px;
-    }
-
-    .footer{
-        text-align:center;
-        color:#64748b;
-        font-size:12px;
-        padding:20px 0 35px;
-    }
-    .trade{
-        background:linear-gradient(135deg,#ec4899,#db2777);
-    }
-
-    .swap{
-        background:linear-gradient(135deg,#06b6d4,#0891b2);
-    }
-
-    .market{
-        background:linear-gradient(135deg,#ef4444,#dc2626);
-    }
-    
-    </style>
-    </head>
-
-    <body>
-
-    <div class='hero'>
-        <div class='badge'>CHC • WEB3 • BNB CHAIN • CHOROX</div>
-        <h1>💎 CHC SUPER APP- CHARLYCOIN</h1>
-        <div class='sub'>
-            Wallet descentralizada, explorer en vivo,
-            minería CHC y herramientas Web3 en una sola app.
+        <div class='mini'>
+            <small>Estado</small>
+            <b style='color:#22c55e;'>● Online</b>
         </div>
     </div>
+</div>
 
-    <div class='wrap'>
+<div class='side'>
 
-        <div class='card'>
-            <a class='btn wallet' href='/wallet'>💼 Abrir Wallet</a>
-            <a class='btn scan' href='/scan'>⛓ Blockchain Explorer</a>
-            <a class='btn stats' href='/stats'>📊 Estadísticas</a>
-            <a class='btn mine' href='/cadena'>🚀 Últimos Bloques</a>
+    <h2>🎁 Bonus Diario</h2>
 
-            <a class='btn trade' href='/trade'>📈 Comprar Criptos</a>
-            <a class='btn swap' href='/swap'>🔄 Swap CHC ↔ CHOROX</a>
-            <a class='btn market' href='/prices'>🔥 Mercado Binance</a>
-
-
-
-
-
-
-            
-        </div>
-
-        <div class='row'>
-            <div class='mini'>
-                <small>Token Principal</small>
-                <b>CHOROX</b>
-            </div>
-
-            <div class='mini'>
-                <small>Red</small>
-                <b>BNB Smart Chain</b>
-            </div>
-
-            <div class='mini'>
-                <small>Minería</small>
-                <b>CHC Network</b>
-            </div>
-
-            <div class='mini'>
-                <small>Estado</small>
-                <b style='color:#22c55e;'>● Online</b>
-            </div>
-        </div>
-
-        <div class='footer'>
-            Powered by Charly Network • Trust Style UI
-        </div>
-
+    <div class='small'>
+        Si minaste CHC en las últimas 24 horas puedes reclamar:
     </div>
 
-    </body>
-    </html>
-    """
+    <div class='reward'>100 CHOROX</div>
 
+    <input id='wallet' class='input'
+    placeholder='Pega tu wallet BSC / minera'>
+
+    <button id='btn' class='claim' onclick='claimNow()'>
+        Reclamar Ahora
+    </button>
+
+    <div class='timer' id='timer'>
+        Disponible ahora
+    </div>
+
+    <div class='status' id='msg'></div>
+
+    <div class='small'>
+        El sistema guarda tu dirección y solo permite un reclamo cada 24 horas.
+        Debes haber minado CHC recientemente.
+    </div>
+
+</div>
+
+</div>
+
+<div class='footer'>
+Powered by Charly Network • Trust Style UI
+</div>
+
+</div>
+
+<script>
+
+let saved = localStorage.getItem("wallet_chc");
+if(saved){
+    document.getElementById("wallet").value = saved;
+}
+
+async function claimNow(){
+
+    let wallet = document.getElementById("wallet").value.trim();
+
+    if(!wallet){
+        alert("Pon tu wallet");
+        return;
+    }
+
+    localStorage.setItem("wallet_chc", wallet);
+
+    document.getElementById("msg").innerHTML = "Procesando...";
+    document.getElementById("btn").disabled = true;
+
+    let fd = new FormData();
+    fd.append("wallet", wallet);
+
+    let r = await fetch("/claim_bonus",{
+        method:"POST",
+        body:fd
+    });
+
+    let t = await r.text();
+
+    document.getElementById("msg").innerHTML = t;
+
+    if(t.includes("✅")){
+        startTimer(86400);
+    }else{
+        document.getElementById("btn").disabled = false;
+    }
+}
+
+function startTimer(sec){
+
+    let box = document.getElementById("timer");
+
+    let x = setInterval(()=>{
+
+        sec--;
+
+        let h = Math.floor(sec/3600);
+        let m = Math.floor((sec%3600)/60);
+        let s = sec%60;
+
+        box.innerHTML =
+        h+"h "+m+"m "+s+"s";
+
+        if(sec<=0){
+            clearInterval(x);
+            box.innerHTML = "Disponible ahora";
+            document.getElementById("btn").disabled = false;
+        }
+
+    },1000);
+}
+
+</script>
+
+</body>
+</html>
+"""
     return html
 
 # ============================================================
