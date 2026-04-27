@@ -92,7 +92,8 @@ def claim_bonus():
     # =========================
     # Enviar 100 CHOROX
     # =========================
-    # send_chorox(wallet, 100)
+   # enviar token real
+    send_chorox(wallet, 100)
 
     claims.update_one(
         {"wallet": wallet},
@@ -100,7 +101,7 @@ def claim_bonus():
         upsert=True
     )
 
-    return "✅ 100 CHOROX enviados"
+return "✅ 100 CHOROX enviados"
 
     # ==========================
     # AQUÍ validas si minó CHC
