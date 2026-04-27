@@ -17,6 +17,16 @@ import json
 import time
 import hashlib
 import secrets
+import unicodedata
+
+def clean_seed(txt):
+    txt = txt.strip().lower()
+    txt = unicodedata.normalize("NFC", txt)
+    txt = " ".join(txt.split())
+    return txt
+
+miner = request.form["miner"].strip().lower()
+seed = clean_seed(request.form["seed"])
 
 
 from flask import (
