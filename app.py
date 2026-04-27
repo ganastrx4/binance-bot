@@ -247,38 +247,131 @@ def backup():
 # BONUS
 # ============================================================
 
-@app.route("/claim_bonus", methods=["POST"])
-def claim_bonus():
+# ===============================================================
+# PATCH EXIT ENGINE PRO COMISIONES + ROI REAL
+# Reemplaza SOLO tus variables y función exit_engine()
+# ===============================================================
 
-    wallet = request.form["wallet"].strip()
-    now = datetime.utcnow()
+# NUEVOS OBJETIVOS MÁS INTELIGENTES
+TP1_ROI = 0.8        # no salir antes de cubrir fees
+TP2_ROI = 2.0
+TP3_ARM = 5.0
 
-    row = claims.find_one({"wallet": wallet})
+SL_ROI = -5.0        # como pediste
+TRAIL_BACK = 0.72    # deja correr más
 
-    if row:
+MIN_PNL_NET = 0.05   # ganancia mínima real
+FEE_EST = 0.04       # comisión total estimada roundtrip
 
-        next_time = row["last_claim"] + timedelta(hours=24)
 
-        if now < next_time:
+def net_ok(pnl):
+    return pnl >= MIN_PNL_NET
 
-            faltan = next_time - now
 
-            horas = int(faltan.total_seconds() // 3600)
-            mins = int((faltan.total_seconds() % 3600) // 60)
+def exit_engine(symbol, long_amt, short_amt, roi_long, roi_short,
+                pnl_long=0, pnl_short=0):
 
-            return f"⏳ Espera {horas}h {mins}m"
+    init_symbol(symbol)
 
-    if balance_calc(wallet) <= 0:
-        return "❌ Debes minar CHC primero"
+    # ================= LONG =================
+    if long_amt > 0:
 
-    claims.update_one(
-        {"wallet": wallet},
-        {"$set": {"last_claim": now}},
-        upsert=True
-    )
+        if roi_long > PEAK_ROI[symbol]["long"]:
+            PEAK_ROI[symbol]["long"] = roi_long
 
-    return "✅ Bonus reclamado"
+        peak = PEAK_ROI[symbol]["long"]
 
+        # STOP REAL
+        if roi_long <= SL_ROI:
+            close_long(symbol, fix_qty(symbol, long_amt))
+            print(symbol, "LONG STOP -5%")
+            reset_side(symbol, "long")
+            return True
+
+        # TP1 solo si hay ganancia neta
+        if (
+            roi_long >= TP1_ROI and
+            not TP_STATE[symbol]["long_tp1"] and
+            net_ok(pnl_long - FEE_EST)
+        ):
+            close_long(symbol, fix_qty(symbol, long_amt * 0.25))
+            TP_STATE[symbol]["long_tp1"] = True
+            print(symbol, "LONG TP1 NETO")
+            return True
+
+        # TP2
+        if (
+            roi_long >= TP2_ROI and
+            not TP_STATE[symbol]["long_tp2"] and
+            net_ok(pnl_long - FEE_EST)
+        ):
+            close_long(symbol, fix_qty(symbol, long_amt * 0.50))
+            TP_STATE[symbol]["long_tp2"] = True
+            print(symbol, "LONG TP2 NETO")
+            return True
+
+        # TRAILING
+        if (
+            peak >= TP3_ARM and
+            roi_long <= peak * TRAIL_BACK and
+            net_ok(pnl_long - FEE_EST)
+        ):
+            close_long(symbol, fix_qty(symbol, long_amt))
+            print(symbol, "LONG TRAIL PROFIT")
+            reset_side(symbol, "long")
+            return True
+
+    else:
+        reset_side(symbol, "long")
+
+    # ================= SHORT =================
+    if short_amt > 0:
+
+        if roi_short > PEAK_ROI[symbol]["short"]:
+            PEAK_ROI[symbol]["short"] = roi_short
+
+        peak = PEAK_ROI[symbol]["short"]
+
+        if roi_short <= SL_ROI:
+            close_short(symbol, fix_qty(symbol, short_amt))
+            print(symbol, "SHORT STOP -5%")
+            reset_side(symbol, "short")
+            return True
+
+        if (
+            roi_short >= TP1_ROI and
+            not TP_STATE[symbol]["short_tp1"] and
+            net_ok(pnl_short - FEE_EST)
+        ):
+            close_short(symbol, fix_qty(symbol, short_amt * 0.25))
+            TP_STATE[symbol]["short_tp1"] = True
+            print(symbol, "SHORT TP1 NETO")
+            return True
+
+        if (
+            roi_short >= TP2_ROI and
+            not TP_STATE[symbol]["short_tp2"] and
+            net_ok(pnl_short - FEE_EST)
+        ):
+            close_short(symbol, fix_qty(symbol, short_amt * 0.50))
+            TP_STATE[symbol]["short_tp2"] = True
+            print(symbol, "SHORT TP2 NETO")
+            return True
+
+        if (
+            peak >= TP3_ARM and
+            roi_short <= peak * TRAIL_BACK and
+            net_ok(pnl_short - FEE_EST)
+        ):
+            close_short(symbol, fix_qty(symbol, short_amt))
+            print(symbol, "SHORT TRAIL PROFIT")
+            reset_side(symbol, "short")
+            return True
+
+    else:
+        reset_side(symbol, "short")
+
+    return False
 
 # ============================================================
 # STATS
