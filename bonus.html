@@ -76,6 +76,7 @@ button{
 Conforme más usuarios migren, entrará oferta y demanda.
 </div>
 
+<input id="minerWallet" placeholder="Tu wallet minera CHC (red CHC)" />
 <input id="receiver" placeholder="Tu wallet BSC donde recibirás CHOROX" />
 <input id="chcAmount" placeholder="Cantidad CHC a convertir" />
 
@@ -114,24 +115,26 @@ async function connect(){
 }
 
 async function claimSwap(){
+  const minerWallet = document.getElementById("minerWallet").value.trim();
   const receiver = document.getElementById("receiver").value.trim();
   const amount = document.getElementById("chcAmount").value.trim();
 
-  if(!receiver || !amount){
+  if(!minerWallet || !receiver || !amount){
     alert("Completa los datos");
     return;
   }
 
-  document.getElementById("status").innerText = "Verificando CHC minados...";
+  document.getElementById("status").innerText = "Verificando bloques minados y validando CHC...";
 
   try{
     const r = await fetch(`${NODE_API}/swap_chc_to_chorox`, {
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body: JSON.stringify({
-        chc_wallet: account,
+        chc_wallet: minerWallet,
         bsc_receiver: receiver,
-        amount: amount
+        amount: amount,
+        marcar_como_canjeado: true
       })
     });
 
