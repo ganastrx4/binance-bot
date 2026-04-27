@@ -44,6 +44,79 @@ CORS(app)
 PORT = int(os.environ.get("PORT", 10000))
 
 # ============================================================
+# claim_bonus
+# ============================================================
+from datetime import datetime, timedelta
+from pymongo import MongoClient
+client = MongoClient(MONGO_URI)
+db = client["charlycoin"]
+claims = db["bonus_claims"]
+
+bonus_memory = {}
+
+from datetime import datetime, timedelta
+
+@app.route("/claim_bonus", methods=["POST"])
+def claim_bonus():
+
+    wallet = request.form["wallet"].strip().lower()
+
+    if not wallet:
+        return "❌ Wallet vacía"
+
+    now = datetime.utcnow()
+
+    row = claims.find_one({"wallet": wallet})
+
+    if row:
+        last = row["last_claim"]
+        next_time = last + timedelta(hours=24)
+
+        if now < next_time:
+            faltan = next_time - now
+            horas = int(faltan.total_seconds() // 3600)
+            minutos = int((faltan.total_seconds() % 3600) // 60)
+            return f"⏳ Espera {horas}h {minutos}m"
+
+    # =========================
+    # Validar si minó CHC hoy
+    # =========================
+    mined = True
+
+    if not mined:
+        return "❌ No minaste en últimas 24h"
+
+    # =========================
+    # Enviar 100 CHOROX
+    # =========================
+    # send_chorox(wallet, 100)
+
+    claims.update_one(
+        {"wallet": wallet},
+        {"$set": {"last_claim": now}},
+        upsert=True
+    )
+
+    return "✅ 100 CHOROX enviados"
+
+    # ==========================
+    # AQUÍ validas si minó CHC
+    # ==========================
+    mined = True
+
+    if not mined:
+        return "❌ No minaste en últimas 24h"
+
+    # ==========================
+    # AQUÍ envías CHOROX real
+    # ==========================
+    # send_chorox(wallet, 100)
+
+    bonus_memory[wallet] = now + timedelta(hours=24)
+
+    return "✅ 100 CHOROX enviados"
+
+# ============================================================
 # chc_available
 # ============================================================
 def chc_available(uid):
