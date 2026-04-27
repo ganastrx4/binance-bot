@@ -19,14 +19,7 @@ import hashlib
 import secrets
 import unicodedata
 
-def clean_seed(txt):
-    txt = txt.strip().lower()
-    txt = unicodedata.normalize("NFC", txt)
-    txt = " ".join(txt.split())
-    return txt
 
-miner = request.form["miner"].strip().lower()
-seed = clean_seed(request.form["seed"])
 
 
 from flask import (
@@ -1128,10 +1121,20 @@ def swap():
 @app.route("/swap_now", methods=["POST"])
 def swap_now():
 
-    miner = request.form["miner"].strip()
-    seed  = request.form["seed"].strip()
+    def clean_seed(txt):
+    txt = txt.strip().lower()
+    txt = unicodedata.normalize("NFC", txt)
+    txt = " ".join(txt.split())
+    return txt
+    
+    miner = request.form["miner"].strip().lower()
+    seed = clean_seed(request.form["seed"])
     amount = float(request.form["amount"])
     to = request.form["to"].strip()
+   
+    
+
+
 
     # verificar wallet minera existe
     row = wallets.find_one({
