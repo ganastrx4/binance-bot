@@ -192,22 +192,14 @@ async function updateDashboard(){
             const tx = block.transacciones?.[0];
             if(!tx) return;
 
-            html += `
-            <tr class="border-t border-gray-800 hover:bg-gray-900/40">
-                <td class="p-3 text-cyan-400 font-bold">#\\\\${block.indice}</td>
-                <td class="p-3 text-xs font-mono text-gray-400">
-                    \\\\${(tx.emisor || "").substring(0,18)}...
-                </td>
-                <td class="p-3 text-xs font-mono text-gray-400">
-                    \\\\${(tx.receptor || "").substring(0,18)}...
-                </td>
-                <td class="p-3 text-yellow-400 font-bold">
-                    \\\\${Number(tx.monto).toLocaleString()}
-                </td>
-                <td class="p-3 text-[10px] text-gray-600 font-mono">
-                    \\\\${block.hash.substring(0,24)}...
-                </td>
-            </tr>`;
+            // Cambiamos la lógica para armar la fila usando texto plano en vez de template strings molestos
+            html += '<tr class="border-t border-gray-800 hover:bg-gray-900/40">';
+            html += '  <td class="p-3 text-cyan-400 font-bold">#' + block.indice + '</td>';
+            html += '  <td class="p-3 text-xs font-mono text-gray-400">' + (tx.emisor || "").substring(0,18) + '...</td>';
+            html += '  <td class="p-3 text-xs font-mono text-gray-400">' + (tx.receptor || "").substring(0,18) + '...</td>';
+            html += '  <td class="p-3 text-yellow-400 font-bold">' + Number(tx.monto).toLocaleString() + '</td>';
+            html += '  <td class="p-3 text-[10px] text-gray-600 font-mono">' + block.hash.substring(0,24) + '...</td>';
+            html += '</tr>';
         });
 
         document.getElementById("blockchain-table").innerHTML = html;
