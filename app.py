@@ -2,12 +2,12 @@ import os
 import json
 import time
 import hashlib
-import threading  # <-- AGREGADO PARA EL MONITOR EN SEGUNDO PLANO
+import threading
 
 from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
 from pymongo import MongoClient, ASCENDING, DESCENDING
-from web3 import Web3  # <-- RECUERDA AGREGAR 'web3' A TU ARCHIVO 'requirements.txt'
+from web3 import Web3
 
 # =====================================================
 # APP
@@ -45,8 +45,199 @@ try:
 except:
     pass
 
-# (El string HTML largo se mantiene exactamente igual, omitido aquí por espacio)
-HTML = """...""" 
+# =====================================================
+# HTML VISUAL INTERFACE (CHARLYSCAN)
+# =====================================================
+HTML = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHARLYSCAN PRO</title>
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+body{
+    background:#070b14;
+    color:#f8fafc;
+    font-family:Segoe UI, Arial;
+}
+.card{
+    background:#111827;
+    border:1px solid #1f2937;
+    border-radius:16px;
+}
+.neon{
+    color:#00f2ff;
+    text-shadow:0 0 14px rgba(0,242,255,.55);
+}
+.blink{
+    animation:blink 1.5s infinite;
+}
+@keyframes blink{
+    0%{opacity:1}
+    50%{opacity:.3}
+    100%{opacity:1}
+}
+</style>
+</head>
+
+<body class="p-6">
+
+<div class="max-w-6xl mx-auto">
+
+<div class="flex justify-between items-center mb-8">
+    <div>
+        <h1 class="text-5xl font-black neon">CHARLYSCAN</h1>
+        <p class="text-gray-400">Explorador Blockchain PRO</p>
+    </div>
+
+    <div class="card p-4 text-right">
+        <p class="text-sm text-gray-400">Estado Nodo</p>
+        <p class="text-green-400 font-bold blink">● EN VIVO</p>
+        <p id="total-blocks" class="text-xl mt-2 font-mono">Bloques: 0</p>
+    </div>
+</div>
+
+<div class="card p-6 mb-6 border-l-4 border-cyan-500">
+    <p class="text-sm text-gray-400 mb-2 font-bold uppercase tracking-widest">
+        Wallet Tracker
+    </p>
+
+    <div class="flex gap-2">
+        <input
+            id="wallet-input"
+            class="w-full p-3 bg-black border border-gray-700 rounded text-cyan-300 font-mono"
+            placeholder="Ingresa tu dirección pública..."
+        />
+        <button onclick="updateDashboard()"
+            class="bg-cyan-600 hover:bg-cyan-500 px-8 rounded font-bold">
+            BUSCAR
+        </button>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+
+    <div class="card p-5 border-l-4 border-yellow-500">
+        <p class="text-gray-400 text-xs font-bold uppercase">Mi Saldo</p>
+        <p id="user-balance"
+           class="text-3xl text-yellow-400 font-black font-mono">
+           0.00 CHC
+        </p>
+    </div>
+
+    <div class="card p-5 border-l-4 border-white">
+        <p class="text-gray-400 text-xs font-bold uppercase">Suministro Actual</p>
+        <p id="total-supply"
+           class="text-3xl font-black font-mono text-white">
+           0 CHC
+        </p>
+        <p class="text-gray-500 text-[10px] mt-1">
+             MÁXIMO: 21,000,000,000 CHC
+        </p>
+    </div>
+
+    <div class="card p-5 border-l-4 border-purple-500">
+        <p class="text-gray-400 text-xs font-bold uppercase">Recompensa x Bloque</p>
+        <p id="last-reward"
+           class="text-3xl text-purple-400 font-black font-mono">
+           0 CHC
+        </p>
+    </div>
+
+</div>
+
+<div class="card overflow-hidden">
+    <div class="p-4 border-b border-gray-800 bg-gray-900/50">
+        <h2 class="font-bold">Blockchain Explorer</h2>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-left">
+            <thead class="text-gray-500 text-xs uppercase bg-black/30">
+                <tr>
+                    <th class="p-3">Bloque</th>
+                    <th class="p-3">De</th>
+                    <th class="p-3">A</th>
+                    <th class="p-3">Monto</th>
+                    <th class="p-3">Hash</th>
+                </tr>
+            </thead>
+
+            <tbody id="blockchain-table" class="text-sm"></tbody>
+        </table>
+    </div>
+</div>
+
+</div>
+
+<script>
+async function updateDashboard(){
+    try{
+        const wallet = document.getElementById("wallet-input").value.trim();
+
+        const [chainRes, statsRes] = await Promise.all([
+            fetch("/cadena"),
+            fetch("/stats")
+        ]);
+
+        const chain = await chainRes.json();
+        const stats = await statsRes.json();
+
+        let html = "";
+
+        chain.forEach(block => {
+            const tx = block.transacciones?.[0];
+            if(!tx) return;
+
+            html += `
+            <tr class="border-t border-gray-800 hover:bg-gray-900/40">
+                <td class="p-3 text-cyan-400 font-bold">#${block.indice}</td>
+                <td class="p-3 text-xs font-mono text-gray-400">
+                    \${(tx.emisor || "").substring(0,18)}...
+                </td>
+                <td class="p-3 text-xs font-mono text-gray-400">
+                    \${(tx.receptor || "").substring(0,18)}...
+                </td>
+                <td class="p-3 text-yellow-400 font-bold">
+                    \${Number(tx.monto).toLocaleString()}
+                </td>
+                <td class="p-3 text-[10px] text-gray-600 font-mono">
+                    \${block.hash.substring(0,24)}...
+                </td>
+            </tr>`;
+        });
+
+        document.getElementById("blockchain-table").innerHTML = html;
+        document.getElementById("total-blocks").innerText = "Bloques: " + stats.bloques;
+        document.getElementById("total-supply").innerText = stats.supply.toLocaleString() + " CHC";
+        document.getElementById("last-reward").innerText = stats.recompensa + " CHC";
+
+        if(wallet !== ""){
+            const r = await fetch("/balance/" + wallet);
+            const b = await r.json();
+
+            document.getElementById("user-balance").innerText =
+                Number(b.balance).toLocaleString(
+                    undefined,
+                    {minimumFractionDigits:2}
+                ) + " CHC";
+        }
+
+    }catch(e){
+        console.log(e);
+    }
+}
+
+setInterval(updateDashboard, 10000);
+updateDashboard();
+</script>
+
+</body>
+</html>
+"""
 
 # =====================================================
 # HELPERS
@@ -134,18 +325,17 @@ def forjar_bloque_compra(billetera_destino, monto_usdt):
         }
         nuevo_bloque["hash"] = calcular_hash(nuevo_bloque)
         collection.insert_one(nuevo_bloque)
-        print(f"[💎] Éxito: Bloque #{nuevo_bloque['indice']} forjado. {tokens_chc} CHC enviados a {billetera_destino}")
+        print(f"[💎] Éxito: Bloque #{nuevo_bloque['indice']} forjado. {tokens_chc} CHC enviados a {billetera_destino}", flush=True)
     except Exception as e:
-        print(f"[❌] Error al inyectar bloque de compra: {e}")
+        print(f"[❌] Error al inyectar bloque de compra: {e}", flush=True)
 
 
 # =====================================================
 # 📡 DAEMON EN SEGUNDO PLANO: ESCUCHA DE PASARELA (USDT)
 # =====================================================
 def monitor_blockchain_tempo():
-    print("[📡] Monitor Tempo iniciado. Escuchando la pool en Binance Smart Chain...")
+    print("[📡] Monitor Tempo iniciado. Escuchando la pool en Binance Smart Chain...", flush=True)
     
-    # Proveedor público de la red
     w3 = Web3(Web3.HTTPProvider("https://bsc-dataseed.binance.org/"))
     POOL_WALLET = "0x9D437783e3b940AC85557765D8b07fF7a69fB4e6"
     USDT_CONTRACT = "0x55d398326f99059fF775485246999027B3197955"
@@ -170,18 +360,16 @@ def monitor_blockchain_tempo():
                         monto_usdt = evento.args.value / (10**18)
                         tx_hash = evento.transactionHash.hex()
                         
-                        # Obtener los datos de la transacción para extraer el MEMO
                         tx_data = w3.eth.get_transaction(tx_hash)
                         input_hex = tx_data.get('input', '')
                         
                         try:
-                            # Intentamos decodificar los datos extra adjuntos en la transferencia
                             memo_chc = bytes.fromhex(input_hex[10:]).decode('utf-8', errors='ignore').strip()
-                            if len(memo_chc) > 20: # Validar que contenga una dirección pública CHC
-                                print(f"\n[💰] ¡Depósito detectado! {monto_usdt} USDT")
+                            if len(memo_chc) > 20:
+                                print(f"\n[💰] ¡Depósito detectado! {monto_usdt} USDT", flush=True)
                                 forjar_bloque_compra(memo_chc, monto_usdt)
                         except:
-                            print("[!] Transferencia recibida pero el campo MEMO no contiene datos legibles.")
+                            print("[!] Transferencia recibida pero el campo MEMO no contiene datos legibles.", flush=True)
                             
                 ultimo_bloque = bloque_actual
             time.sleep(4)
@@ -190,7 +378,7 @@ def monitor_blockchain_tempo():
 
 
 # =====================================================
-# ROUTES (Se mantienen todas igual)
+# ROUTES
 # =====================================================
 @app.route("/")
 def home():
@@ -296,7 +484,6 @@ def minar():
 if __name__ == "__main__":
     crear_genesis()
     
-    # 🚀 ACTIVACIÓN EN PARALELO DEL MONITOR ANTES DE ARRANCAR FLASK
     hilo_pool = threading.Thread(target=monitor_blockchain_tempo, daemon=True)
     hilo_pool.start()
     
