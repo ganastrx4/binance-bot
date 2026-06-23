@@ -30,6 +30,7 @@ HALVING_CADA = 21000
 MAX_SUPPLY = 21000000000
 COOLDOWN_MINADO = 2
 
+# Cache de control para evitar spam en minería
 ULTIMO_MINADO = {}
 
 # =====================================================
@@ -46,7 +47,7 @@ except:
     pass
 
 # =====================================================
-# HTML VISUAL INTERFACE (CHARLYSCAN CON INTEGRACIÓN NATIVAMENTE INTEGRADA)
+# HTML VISUAL INTERFACE (CHARLYSCAN WEB3 INTEGRATED)
 # =====================================================
 HTML = """
 <!DOCTYPE html>
@@ -94,7 +95,6 @@ body{
     </div>
 
     <div class="flex items-center gap-4">
-        <!-- 🦊 BOTÓN CONEXIÓN Y CONFIGURACIÓN DIRECTA -->
         <button id="btn-connect" onclick="conectarMetaMask()" 
             class="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 shadow-lg transition-all duration-300">
             <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" class="w-6 h-6" alt="MetaMask">
@@ -109,14 +109,13 @@ body{
     </div>
 </div>
 
-<!-- 🚨 BANNER DE SINCRONIZACIÓN DE RED -->
 <div id="network-banner" class="hidden card p-4 mb-6 border-l-4 border-purple-500 bg-purple-950/20 flex justify-between items-center">
     <div>
         <p class="text-purple-400 font-bold">Sincronizar activos con MetaMask</p>
-        <p class="text-xs text-gray-400">Para visualizar tus CHC nativos directamente en la interfaz de la extensión, cambia a la red del explorador.</p>
+        <p class="text-xs text-gray-400">Para visualizar tus CHC nativos directamente en la interfaz de la extensión, establece los parámetros de la red.</p>
     </div>
     <button onclick="configurarRedCharly()" class="bg-purple-600 hover:bg-purple-500 text-xs font-bold py-2 px-4 rounded text-white">
-        Establecer Red CHC Naranja
+        Establecer Parámetros CHC
     </button>
 </div>
 
@@ -194,12 +193,9 @@ body{
 </div>
 
 <script>
-// PARAMETROS DE CONFIGURACIÓN DE TU MONEDA COMO ACTIVO NATIVO DE RED
 const CHARLY_CHAIN_ID = "0x3039"; 
 const CHARLY_CHAIN_NAME = "CharlyScan Network";
-
-// Evitamos usar el origen web como RPC si no es un nodo EVM real para evitar el bloqueo visual de MetaMask
-const CHARLY_RPC_URL = "https://rpc.ankr.com/eth"; // Fallback RPC estable para que MetaMask valide la conexión sin lanzar errores de sincronización
+const CHARLY_RPC_URL = "https://rpc.ankr.com/eth"; 
 
 let walletConectada = "";
 
@@ -229,7 +225,6 @@ async function configurarRedCharly() {
                     params: [{
                         chainId: CHARLY_CHAIN_ID,
                         chainName: CHARLY_CHAIN_NAME,
-                        // Configuración del token CHC como la moneda por defecto de la wallet
                         nativeCurrency: { 
                             name: 'Charly Coin', 
                             symbol: 'CHC', 
@@ -298,8 +293,10 @@ async function updateDashboard(){
         let html = "";
 
         chain.forEach(block => {
-            const tx = block.transacciones?.[0];
-            if(!tx) return;
+            let tx = block.transacciones;
+            if (!tx) return;
+            if (Array.isArray(tx)) tx = tx[0];
+            if (!tx) return;
 
             html += '<tr class="border-t border-gray-800 hover:bg-gray-900/40">';
             html += '  <td class="p-3 text-cyan-400 font-bold">#' + block.indice + '</td>';
@@ -356,7 +353,12 @@ def crear_genesis():
         bloque = {
             "indice": 0,
             "timestamp": time.time(),
-            "transacciones": [],
+            "transacciones": [{
+                "emisor": "SISTEMA",
+                "receptor": "GENESIS",
+                "monto": 0.0,
+                "firma": "GENESIS_BLOCK"
+            }],
             "nonce": "0",
             "hash_anterior": "0"
         }
@@ -379,10 +381,10 @@ def saldo_wallet(wallet):
     if not wallet:
         return 0.0
         
-    # Limpiamos la wallet de espacios y saltos de línea
     wallet_clean = str(wallet).strip()
-    
-    # Intentamos buscar en la base de datos ignorando mayúsculas/minúsculas
+    if wallet_clean == "":
+        return 0.0
+        
     pipeline = [
         {"$unwind": "$transacciones"},
         {
@@ -401,20 +403,32 @@ def saldo_wallet(wallet):
         movimientos = []
         
     saldo = 0.0
-    
-    # Para la comparación interna, pasamos todo a minúsculas
     wallet_lower = wallet_clean.lower()
 
     for item in movimientos:
-        tx = item["transacciones"]
-        receptor = str(tx.get("receptor", "")).strip().lower()
-        emisor = str(tx.get("emisor", "")).strip().lower()
-        monto = float(tx.get("monto", 0))
+        try:
+            tx = item.get("transacciones", {})
+            if not tx:
+                continue
+            
+            # Validamos si es una lista residual por desajuste de unwind
+            if isinstance(tx, list):
+                if len(tx) > 0:
+                    tx = tx[0]
+                else:
+                    continue
 
-        if receptor == wallet_lower:
-            saldo += monto
-        if emisor == wallet_lower:
-            saldo -= monto
+            receptor = str(tx.get("receptor", "")).strip().lower()
+            emisor = str(tx.get("emisor", "")).strip().lower()
+            monto = float(tx.get("monto", 0))
+
+            if receptor == wallet_lower:
+                saldo += monto
+            if emisor == wallet_lower:
+                saldo -= monto
+        except Exception as e:
+            print(f"Error procesando transacción unitaria: {e}", flush=True)
+            continue
 
     return round(saldo, 8)
 
@@ -423,7 +437,6 @@ def saldo_wallet(wallet):
 # ⚡ FUNCIÓN INTERNA: ASIGNACIÓN AUTOMÁTICA DE CHC
 # =====================================================
 def forjar_bloque_compra(billetera_destino, monto_usdt):
-    """Genera un bloque de asignación por compra directa indexado en MongoDB"""
     try:
         ultimo = collection.find_one(sort=[("indice", -1)])
         tasa_cambio = 0.85
@@ -434,7 +447,7 @@ def forjar_bloque_compra(billetera_destino, monto_usdt):
             "timestamp": time.time(),
             "transacciones": [{
                 "emisor": "TEMPO_POOL",
-                "receptor": billetera_destino,
+                "receptor": billetera_destino.strip(),
                 "monto": tokens_chc,
                 "firma": "LIQUIDITY_INJECTION"
             }],
@@ -459,7 +472,7 @@ def monitor_blockchain_tempo():
     USDT_CONTRACT = "0x55d398326f99059fF775485246999027B3197955"
     
     USDT_ABI = '[{"anonymous":false,"inputs":[{"indexed":true,"name":"from","type":"address"},{"indexed":true,"name":"to","type":"address"},{"name":"value","type":"uint256"}],"name":"Transfer","type":"event"}]'
-    contrato_usdt = w3.eth.contract(address=w3.to_checksum_address(USDT_CONTRACT), abi=USDT_ABI)
+    contrato_usdt = w3.eth.contract(address=w3.to_checksum_address(USDT_CONTRACT), abi=json.loads(USDT_ABI))
     
     try:
         ultimo_bloque = w3.eth.block_number
@@ -483,11 +496,11 @@ def monitor_blockchain_tempo():
                         
                         try:
                             memo_chc = bytes.fromhex(input_hex[10:]).decode('utf-8', errors='ignore').strip()
-                            if len(memo_chc) > 20:
+                            if len(memo_chc) > 10:
                                 print(f"\n[💰] ¡Depósito detectado! {monto_usdt} USDT", flush=True)
                                 forjar_bloque_compra(memo_chc, monto_usdt)
-                        except:
-                            print("[!] Transferencia recibida pero el campo MEMO no contiene datos legibles.", flush=True)
+                        except Exception as memo_err:
+                            print(f"[!] Error decodificando MEMO: {memo_err}", flush=True)
                             
                 ultimo_bloque = bloque_actual
             time.sleep(4)
@@ -509,8 +522,11 @@ def stats():
         {"$unwind": "$transacciones"},
         {"$group": {"_id": None, "total": {"$sum": "$transacciones.monto"}}}
     ]
-    result = list(collection.aggregate(pipeline))
-    supply = result[0]["total"] if result else 0
+    try:
+        result = list(collection.aggregate(pipeline))
+        supply = result[0]["total"] if result else 0
+    except:
+        supply = 0
 
     return jsonify({
         "bloques": max(total - 1, 0),
@@ -530,18 +546,18 @@ def balance(wallet):
 
 @app.route("/transferir", methods=["POST"])
 def transferir():
-    data = request.get_json(force=True)
-    emisor = str(data.get("emisor", "")).strip()
-    receptor = str(data.get("receptor", "")).strip()
     try:
+        data = request.get_json(force=True)
+        emisor = str(data.get("emisor", "")).strip()
+        receptor = str(data.get("receptor", "")).strip()
         monto = float(data.get("monto", 0))
+        firma = str(data.get("firma", "")).strip()
     except:
-        return jsonify({"mensaje": "monto inválido"}), 400
+        return jsonify({"mensaje": "datos de transferencia inválidos"}), 400
 
-    firma = str(data.get("firma", "")).strip()
     if not emisor or not receptor or monto <= 0:
         return jsonify({"mensaje": "datos incompletos"}), 400
-    if emisor == receptor:
+    if emisor.lower() == receptor.lower():
         return jsonify({"mensaje": "no puedes enviarte a ti mismo"}), 400
 
     if saldo_wallet(emisor) < monto:
@@ -564,9 +580,12 @@ def transferir():
 
 @app.route("/minar", methods=["POST"])
 def minar():
-    data = request.get_json(force=True)
-    wallet = str(data.get("wallet", "")).strip()
-    nonce = str(data.get("nonce", "")).strip()
+    try:
+        data = request.get_json(force=True)
+        wallet = str(data.get("wallet", "")).strip()
+        nonce = str(data.get("nonce", "")).strip()
+    except:
+        return jsonify({"error": "Formato JSON inválido"}), 400
 
     if not wallet or not nonce:
         return jsonify({"error": "datos incompletos"}), 400
