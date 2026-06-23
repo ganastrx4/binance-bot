@@ -376,13 +376,20 @@ def recompensa_actual():
 
 
 def saldo_wallet(wallet):
+    if not wallet:
+        return 0.0
+        
+    # Limpiamos la wallet de espacios y saltos de línea
+    wallet_clean = str(wallet).strip()
+    
+    # Intentamos buscar en la base de datos ignorando mayúsculas/minúsculas
     pipeline = [
         {"$unwind": "$transacciones"},
         {
             "$match": {
                 "$or": [
-                    {"transacciones.receptor": {"$regex": f"^{wallet}$", "$options": "i"}},
-                    {"transacciones.emisor": {"$regex": f"^{wallet}$", "$options": "i"}}
+                    {"transacciones.receptor": {"$regex": f"^{wallet_clean}$", "$options": "i"}},
+                    {"transacciones.emisor": {"$regex": f"^{wallet_clean}$", "$options": "i"}}
                 ]
             }
         }
@@ -394,12 +401,14 @@ def saldo_wallet(wallet):
         movimientos = []
         
     saldo = 0.0
-    wallet_lower = wallet.lower().strip()
+    
+    # Para la comparación interna, pasamos todo a minúsculas
+    wallet_lower = wallet_clean.lower()
 
     for item in movimientos:
         tx = item["transacciones"]
-        receptor = str(tx.get("receptor", "")).lower().strip()
-        emisor = str(tx.get("emisor", "")).lower().strip()
+        receptor = str(tx.get("receptor", "")).strip().lower()
+        emisor = str(tx.get("emisor", "")).strip().lower()
         monto = float(tx.get("monto", 0))
 
         if receptor == wallet_lower:
