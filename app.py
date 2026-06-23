@@ -46,7 +46,7 @@ except:
     pass
 
 # =====================================================
-# HTML VISUAL INTERFACE (CHARLYSCAN)
+# HTML VISUAL INTERFACE (CHARLYSCAN CON INTEGRACIÓN METAMASK)
 # =====================================================
 HTML = """
 <!DOCTYPE html>
@@ -54,7 +54,7 @@ HTML = """
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CHARLYSCAN PRO</title>
+<title>CHARLYSCAN PRO - Web3 Integrated</title>
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
@@ -90,14 +90,32 @@ body{
 <div class="flex justify-between items-center mb-8">
     <div>
         <h1 class="text-5xl font-black neon">CHARLYSCAN</h1>
-        <p class="text-gray-400">Explorador Blockchain PRO</p>
+        <p class="text-gray-400">Explorador Blockchain PRO & Web3</p>
     </div>
 
-    <div class="card p-4 text-right">
-        <p class="text-sm text-gray-400">Estado Nodo</p>
-        <p class="text-green-400 font-bold blink">● EN VIVO</p>
-        <p id="total-blocks" class="text-xl mt-2 font-mono">Bloques: 0</p>
+    <div class="flex items-center gap-4">
+        <button id="btn-connect" onclick="conectarMetaMask()" 
+            class="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 shadow-lg transition-all duration-300">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" class="w-6 h-6" alt="MetaMask">
+            <span id="btn-text">Conectar MetaMask</span>
+        </button>
+
+        <div class="card p-4 text-right">
+            <p class="text-sm text-gray-400">Estado Nodo</p>
+            <p class="text-green-400 font-bold blink">● EN VIVO</p>
+            <p id="total-blocks" class="text-xl mt-2 font-mono">Bloques: 0</p>
+        </div>
     </div>
+</div>
+
+<div id="network-banner" class="hidden card p-4 mb-6 border-l-4 border-amber-500 bg-amber-950/20 flex justify-between items-center">
+    <div>
+        <p class="text-amber-400 font-bold">¡Red Incorrecta en MetaMask!</p>
+        <p class="text-xs text-gray-400">Para operar correctamente con el ecosistema, debes estar en CharlyScan Network.</p>
+    </div>
+    <button onclick="configurarRedCharly()" class="bg-amber-600 hover:bg-amber-500 text-xs font-bold py-2 px-4 rounded text-white">
+        Configurar Red CHC
+    </button>
 </div>
 
 <div class="card p-6 mb-6 border-l-4 border-cyan-500">
@@ -121,7 +139,7 @@ body{
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
 
     <div class="card p-5 border-l-4 border-yellow-500">
-        <p class="text-gray-400 text-xs font-bold uppercase">Mi Saldo</p>
+        <p class="text-gray-400 text-xs font-bold uppercase">Mi Saldo en Red CHC</p>
         <p id="user-balance"
            class="text-3xl text-yellow-400 font-black font-mono">
            0.00 CHC
@@ -174,6 +192,93 @@ body{
 </div>
 
 <script>
+// PARAMETROS DE CONFIGURACIÓN DE TU RED PROPIA
+const CHARLY_CHAIN_ID = "0x3039"; // ID de tu red en Hexadecimal (Ej: 12345 = 0x3039)
+const CHARLY_CHAIN_NAME = "CharlyScan Network";
+const CHARLY_RPC_URL = window.location.origin; // Usa el mismo servidor Flask como RPC si compilas nodo EVM, o pon la url de tu nodo
+
+let walletConectada = "";
+
+async function verificarRed() {
+    if (window.ethereum) {
+        const currentChainId = await window.ethereum.request({ method: 'eth_chainId' });
+        const banner = document.getElementById("network-banner");
+        if (walletConectada && currentChainId !== CHARLY_CHAIN_ID) {
+            banner.classList.remove("hidden");
+        } else {
+            banner.classList.add("hidden");
+        }
+    }
+}
+
+async function configurarRedCharly() {
+    try {
+        await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: CHARLY_CHAIN_ID }],
+        });
+    } catch (switchError) {
+        if (switchError.code === 4902) {
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                        chainId: CHARLY_CHAIN_ID,
+                        chainName: CHARLY_CHAIN_NAME,
+                        nativeCurrency: { name: 'Charly Coin', symbol: 'CHC', decimals: 18 },
+                        rpcUrls: [CHARLY_RPC_URL], 
+                        blockExplorerUrls: [window.location.origin]
+                    }],
+                });
+            } catch (addError) {
+                console.error("Error al agregar la red CharlyScan:", addError);
+            }
+        }
+    }
+}
+
+async function conectarMetaMask() {
+    if (typeof window.ethereum !== 'undefined') {
+        try {
+            const cuentas = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            walletConectada = cuentas[0];
+            
+            // Actualizar interfaz con wallet acortada
+            document.getElementById("btn-text").innerText = walletConectada.substring(0,6) + "..." + walletConectada.substring(walletConectada.length - 4);
+            document.getElementById("wallet-input").value = walletConectada;
+            
+            // Verificar si está en la red correcta
+            await verificarRed();
+            // Cargar datos
+            updateDashboard();
+        } catch (error) {
+            console.error("Conexión rechazada por el usuario:", error);
+        }
+    } else {
+        alert("¡MetaMask no está instalado! Instálalo para usar las funciones Web3.");
+    }
+}
+
+// Escuchar cambios de cuenta o red directamente en MetaMask
+if (window.ethereum) {
+    window.ethereum.on('accountsChanged', (accounts) => {
+        if (accounts.length > 0) {
+            walletConectada = accounts[0];
+            document.getElementById("btn-text").innerText = walletConectada.substring(0,6) + "..." + walletConectada.substring(walletConectada.length - 4);
+            document.getElementById("wallet-input").value = walletConectada;
+            updateDashboard();
+        } else {
+            walletConectada = "";
+            document.getElementById("btn-text").innerText = "Conectar MetaMask";
+        }
+    });
+
+    window.ethereum.on('chainChanged', () => {
+        verificarRed();
+        window.location.reload();
+    });
+}
+
 async function updateDashboard(){
     try{
         const wallet = document.getElementById("wallet-input").value.trim();
@@ -192,7 +297,6 @@ async function updateDashboard(){
             const tx = block.transacciones?.[0];
             if(!tx) return;
 
-            // Cambiamos la lógica para armar la fila usando texto plano en vez de template strings molestos
             html += '<tr class="border-t border-gray-800 hover:bg-gray-900/40">';
             html += '  <td class="p-3 text-cyan-400 font-bold">#' + block.indice + '</td>';
             html += '  <td class="p-3 text-xs font-mono text-gray-400">' + (tx.emisor || "").substring(0,18) + '...</td>';
