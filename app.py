@@ -411,7 +411,6 @@ def saldo_wallet(wallet):
             if not tx:
                 continue
             
-            # Validamos si es una lista residual por desajuste de unwind
             if isinstance(tx, list):
                 if len(tx) > 0:
                     tx = tx[0]
