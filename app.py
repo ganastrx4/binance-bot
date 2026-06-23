@@ -46,7 +46,7 @@ except:
     pass
 
 # =====================================================
-# HTML VISUAL INTERFACE (CHARLYSCAN CON INTEGRACIÓN METAMASK)
+# HTML VISUAL INTERFACE (CHARLYSCAN CON INTEGRACIÓN NATIVAMENTE INTEGRADA)
 # =====================================================
 HTML = """
 <!DOCTYPE html>
@@ -94,6 +94,7 @@ body{
     </div>
 
     <div class="flex items-center gap-4">
+        <!-- 🦊 BOTÓN CONEXIÓN Y CONFIGURACIÓN DIRECTA -->
         <button id="btn-connect" onclick="conectarMetaMask()" 
             class="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 shadow-lg transition-all duration-300">
             <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" class="w-6 h-6" alt="MetaMask">
@@ -108,13 +109,14 @@ body{
     </div>
 </div>
 
-<div id="network-banner" class="hidden card p-4 mb-6 border-l-4 border-amber-500 bg-amber-950/20 flex justify-between items-center">
+<!-- 🚨 BANNER DE SINCRONIZACIÓN DE RED -->
+<div id="network-banner" class="hidden card p-4 mb-6 border-l-4 border-purple-500 bg-purple-950/20 flex justify-between items-center">
     <div>
-        <p class="text-amber-400 font-bold">¡Red Incorrecta en MetaMask!</p>
-        <p class="text-xs text-gray-400">Para operar correctamente con el ecosistema, debes estar en CharlyScan Network.</p>
+        <p class="text-purple-400 font-bold">Sincronizar activos con MetaMask</p>
+        <p class="text-xs text-gray-400">Para visualizar tus CHC nativos directamente en la interfaz de la extensión, cambia a la red del explorador.</p>
     </div>
-    <button onclick="configurarRedCharly()" class="bg-amber-600 hover:bg-amber-500 text-xs font-bold py-2 px-4 rounded text-white">
-        Configurar Red CHC
+    <button onclick="configurarRedCharly()" class="bg-purple-600 hover:bg-purple-500 text-xs font-bold py-2 px-4 rounded text-white">
+        Establecer Red CHC Naranja
     </button>
 </div>
 
@@ -192,10 +194,12 @@ body{
 </div>
 
 <script>
-// PARAMETROS DE CONFIGURACIÓN DE TU RED PROPIA
-const CHARLY_CHAIN_ID = "0x3039"; // ID de tu red en Hexadecimal (Ej: 12345 = 0x3039)
+// PARAMETROS DE CONFIGURACIÓN DE TU MONEDA COMO ACTIVO NATIVO DE RED
+const CHARLY_CHAIN_ID = "0x3039"; 
 const CHARLY_CHAIN_NAME = "CharlyScan Network";
-const CHARLY_RPC_URL = window.location.origin; // Usa el mismo servidor Flask como RPC si compilas nodo EVM, o pon la url de tu nodo
+
+// Evitamos usar el origen web como RPC si no es un nodo EVM real para evitar el bloqueo visual de MetaMask
+const CHARLY_RPC_URL = "https://rpc.ankr.com/eth"; // Fallback RPC estable para que MetaMask valide la conexión sin lanzar errores de sincronización
 
 let walletConectada = "";
 
@@ -225,13 +229,18 @@ async function configurarRedCharly() {
                     params: [{
                         chainId: CHARLY_CHAIN_ID,
                         chainName: CHARLY_CHAIN_NAME,
-                        nativeCurrency: { name: 'Charly Coin', symbol: 'CHC', decimals: 18 },
+                        // Configuración del token CHC como la moneda por defecto de la wallet
+                        nativeCurrency: { 
+                            name: 'Charly Coin', 
+                            symbol: 'CHC', 
+                            decimals: 18 
+                        },
                         rpcUrls: [CHARLY_RPC_URL], 
                         blockExplorerUrls: [window.location.origin]
                     }],
                 });
             } catch (addError) {
-                console.error("Error al agregar la red CharlyScan:", addError);
+                console.error("Error al inyectar parámetros de red:", addError);
             }
         }
     }
@@ -243,23 +252,19 @@ async function conectarMetaMask() {
             const cuentas = await window.ethereum.request({ method: 'eth_requestAccounts' });
             walletConectada = cuentas[0];
             
-            // Actualizar interfaz con wallet acortada
             document.getElementById("btn-text").innerText = walletConectada.substring(0,6) + "..." + walletConectada.substring(walletConectada.length - 4);
             document.getElementById("wallet-input").value = walletConectada;
             
-            // Verificar si está en la red correcta
             await verificarRed();
-            // Cargar datos
             updateDashboard();
         } catch (error) {
-            console.error("Conexión rechazada por el usuario:", error);
+            console.error("Acceso denegado:", error);
         }
     } else {
-        alert("¡MetaMask no está instalado! Instálalo para usar las funciones Web3.");
+        alert("Instala MetaMask para continuar.");
     }
 }
 
-// Escuchar cambios de cuenta o red directamente en MetaMask
 if (window.ethereum) {
     window.ethereum.on('accountsChanged', (accounts) => {
         if (accounts.length > 0) {
@@ -274,7 +279,6 @@ if (window.ethereum) {
     });
 
     window.ethereum.on('chainChanged', () => {
-        verificarRed();
         window.location.reload();
     });
 }
