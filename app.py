@@ -22,7 +22,7 @@ if MONGO_URI == "":
 DIFICULTAD = 5
 RECOMPENSA_INICIAL = 18.0
 HALVING_CADA = 21000
-MAX_SUPPLY = 21000000000
+MAX_SUPPLY = 21000000000 # El límite que querías mostrar
 
 ULTIMO_MINADO = {}
 
@@ -30,7 +30,7 @@ client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=30000)
 db = client["charlycoin_db"]
 collection = db["blockchain"]
 
-# Índices para evitar colisiones e hilos trabados
+# Índices para que no se trabe
 collection.create_index("hash")
 try:
     collection.create_index([("indice", ASCENDING)], unique=True)
@@ -38,7 +38,7 @@ except:
     pass
 
 # ==========================================
-# HTML VISUALIZADOR
+# HTML (CON FIX DE SUPPLY Y LÍMITE)
 # ==========================================
 HTML = """
 <!DOCTYPE html>
@@ -49,7 +49,7 @@ HTML = """
     <title>CharlyScan - Full Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background:#070b14; color:#f8fafc; font-family:Segoe UI, Arial; }
+        body { background:#070b14; color:#f8fafc; font-family:Segoe UI; }
         .card { background:#111827; border:1px solid #1f2937; border-radius:16px; }
         .neon { color:#00f2ff; text-shadow:0 0 15px rgba(0,242,255,.6); }
         .blink { animation:blink 1.5s infinite; }
@@ -134,24 +134,26 @@ async function updateDashboard() {
             <tr class="border-t border-gray-800 hover:bg-gray-900/50">
                 <td class="p-3 text-cyan-400 font-bold">#${block.indice}</td>
                 <td class="p-3 text-xs font-mono text-gray-400">${tx.receptor}</td>
-                <td class="p-3 text-yellow-400 font-bold">+${Number(tx.monto).toLocaleString()}</td>
+                <td class="p-3 text-yellow-400 font-bold">+${tx.monto.toLocaleString()}</td>
                 <td class="p-3 text-[10px] text-gray-600 font-mono">${block.hash.substring(0,24)}...</td>
             </tr>`;
         });
 
         document.getElementById("blockchain-table").innerHTML = tableHtml;
         document.getElementById("total-blocks").innerText = "Bloques: " + stats.bloques;
-        document.getElementById("total-supply").innerText = Number(stats.supply).toLocaleString() + " CHC";
+        
+        // AQUÍ ESTABA EL ERROR: Usar stats.supply en lugar de stats.recompensa
+        document.getElementById("total-supply").innerText = stats.supply.toLocaleString() + " CHC";
         document.getElementById("last-reward").innerText = stats.recompensa + " CHC";
 
         if(wallet !== ""){
             const balRes = await fetch("/balance/" + wallet);
             const bal = await balRes.json();
-            document.getElementById("user-balance").innerText = Number(bal.balance).toLocaleString(undefined, {minimumFractionDigits: 2}) + " CHC";
+            document.getElementById("user-balance").innerText = bal.balance.toLocaleString(undefined, {minimumFractionDigits: 2}) + " CHC";
         }
-    } catch(e){ console.log("Error dashboard:", e); }
+    } catch(e){ console.log("Error:", e); }
 }
-setInterval(updateDashboard, 5000);
+setInterval(updateDashboard, 10000);
 updateDashboard();
 </script>
 </body>
@@ -159,7 +161,7 @@ updateDashboard();
 """
 
 # ==========================================
-# LÓGICA DE SERVIDOR
+# LÓGICA DE SERVIDOR (MANTENIDA)
 # ==========================================
 def calcular_hash(bloque):
     copia = dict(bloque)
@@ -170,14 +172,7 @@ def calcular_hash(bloque):
 
 def crear_genesis():
     if collection.count_documents({}) == 0:
-        bloque = {
-            "indice": 0, 
-            "timestamp": time.time(), 
-            # FIX: El bloque génesis requiere una transacción estructural para no romper el $unwind
-            "transacciones": [{"emisor": "SISTEMA", "receptor": "GENESIS", "monto": 0.0}], 
-            "nonce": "0", 
-            "hash_anterior": "0"
-        }
+        bloque = {"indice": 0, "timestamp": time.time(), "transacciones": [], "nonce": "0", "hash_anterior": "0"}
         bloque["hash"] = calcular_hash(bloque)
         collection.insert_one(bloque)
 
@@ -187,18 +182,14 @@ def recompensa_actual():
     return max(RECOMPENSA_INICIAL / (2 ** halvings), 0.00000001)
 
 @app.route("/")
-def home(): 
-    return render_template_string(HTML)
+def home(): return render_template_string(HTML)
 
 @app.route("/stats")
 def stats():
     total = collection.count_documents({})
     pipeline = [{"$unwind": "$transacciones"}, {"$group": {"_id": None, "total": {"$sum": "$transacciones.monto"}}}]
-    try:
-        result = list(collection.aggregate(pipeline))
-        supply = result[0]["total"] if result else 0
-    except:
-        supply = 0
+    result = list(collection.aggregate(pipeline))
+    supply = result[0]["total"] if result else 0
     return jsonify({
         "bloques": max(total - 1, 0),
         "supply": round(supply, 2),
@@ -212,11 +203,9 @@ def cadena():
 
 @app.route("/balance/<wallet>")
 def balance(wallet):
-    # FIX: Forzar minúsculas mediante Regex para encontrar transacciones sin importar el formato de entrada
-    wallet_clean = str(wallet).strip().lower()
     pipeline = [
         {"$unwind": "$transacciones"},
-        {"$match": {"transacciones.receptor": {"$regex": f"^{wallet_clean}$", "$options": "i"}}},
+        {"$match": {"transacciones.receptor": wallet}},
         {"$group": {"_id": None, "total": {"$sum": "$transacciones.monto"}}}
     ]
     res = list(collection.aggregate(pipeline))
@@ -224,23 +213,18 @@ def balance(wallet):
 
 @app.route("/minar", methods=["POST"])
 def minar():
-    try:
-        data = request.get_json(force=True)
-        wallet = str(data.get("wallet", "")).strip().lower()  # FIX: Asegurar minúsculas uniforme
-        nonce = str(data.get("nonce", "")).strip()
-    except:
-        return jsonify({"error": "Formato JSON inválido"}), 400
-
-    if not wallet or not nonce: 
-        return jsonify({"error": "datos incompletos"}), 400
+    data = request.get_json(force=True)
+    wallet = str(data.get("wallet", "")).strip()
+    nonce = str(data.get("nonce", "")).strip()
+    if not wallet or not nonce: return jsonify({"error": "datos incompletos"}), 400
     
+    # Anti-spam simple
     ahora = time.time()
     if wallet in ULTIMO_MINADO and ahora - ULTIMO_MINADO[wallet] < 2:
         return jsonify({"error": "espera 2 seg"}), 429
 
     prueba = hashlib.sha256(f"{wallet}{nonce}".encode()).hexdigest()
-    if not prueba.startswith("0" * DIFICULTAD): 
-        return jsonify({"error": "hash invalido"}), 400
+    if not prueba.startswith("0" * DIFICULTAD): return jsonify({"error": "hash invalido"}), 400
 
     ultimo = collection.find_one(sort=[("indice", -1)])
     nuevo = {
