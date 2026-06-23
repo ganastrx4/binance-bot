@@ -377,22 +377,31 @@ def saldo_wallet(wallet):
         {
             "$match": {
                 "$or": [
-                    {"transacciones.receptor": wallet},
-                    {"transacciones.emisor": wallet}
+                    {"transacciones.receptor": {"$regex": f"^{wallet}$", "$options": "i"}},
+                    {"transacciones.emisor": {"$regex": f"^{wallet}$", "$options": "i"}}
                 ]
             }
         }
     ]
 
-    movimientos = list(collection.aggregate(pipeline))
+    try:
+        movimientos = list(collection.aggregate(pipeline))
+    except:
+        movimientos = []
+        
     saldo = 0.0
+    wallet_lower = wallet.lower().strip()
 
     for item in movimientos:
         tx = item["transacciones"]
-        if tx.get("receptor") == wallet:
-            saldo += float(tx.get("monto", 0))
-        if tx.get("emisor") == wallet:
-            saldo -= float(tx.get("monto", 0))
+        receptor = str(tx.get("receptor", "")).lower().strip()
+        emisor = str(tx.get("emisor", "")).lower().strip()
+        monto = float(tx.get("monto", 0))
+
+        if receptor == wallet_lower:
+            saldo += monto
+        if emisor == wallet_lower:
+            saldo -= monto
 
     return round(saldo, 8)
 
